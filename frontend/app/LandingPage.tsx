@@ -41,7 +41,7 @@ export default function LandingPage() {
           mode="contained"
           style={styles.cta}
           labelStyle={{ fontSize: 18, fontWeight: 'bold' }}
-          onPress={() => router.push('../(auth)/login')}
+          onPress={() => router.push('/GetStarted')}
           contentStyle={{ paddingVertical: 8 }}
         >
           Get Started
