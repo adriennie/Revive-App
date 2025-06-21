@@ -1,4 +1,4 @@
-// app/screens/ForSaleScreen.tsx
+// app/screens/ForSale.tsx
 import React, { useState, FC } from 'react';
 import {
   View,
@@ -20,7 +20,7 @@ import { ParamListBase, NavigationProp } from '@react-navigation/native'; // Imp
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2; // (Screen width - horizontal padding) / 2 cards per row
 
-// 1. Define the Item interface
+// Define the Item interface
 interface Item {
   id: string;
   name: string;
@@ -38,7 +38,7 @@ interface Item {
 }
 
 // Dummy data for demonstration. This would come from your backend API.
-const dummyForSaleItems: Item[] = [ // 2. Apply Item type to dummy data
+const dummyForSaleItems: Item[] = [ // Apply Item type to dummy data
   {
     id: '1',
     name: 'Vintage Bookshelf',
@@ -157,7 +157,6 @@ const StarRating: FC<StarRatingProps> = ({ rating, size = 14, color = '#FFD700' 
 };
 
 // Define the navigation stack type for ForSaleScreen
-// This helps TypeScript understand available routes and their parameters
 type RootStackParamList = {
   'screens/ItemDetailsScreen': { item: Item };
   // Add other routes here if ForSaleScreen navigates to them
@@ -167,7 +166,7 @@ type RootStackParamList = {
 type ForSaleScreenNavigationProp = NavigationProp<RootStackParamList>;
 
 export default function ForSaleScreen() {
-  const navigation = useNavigation<ForSaleScreenNavigationProp>(); // 4. Type the useNavigation hook
+  const navigation = useNavigation<ForSaleScreenNavigationProp>(); // Type the useNavigation hook
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedCondition, setSelectedCondition] = useState('All');
@@ -194,7 +193,7 @@ export default function ForSaleScreen() {
     return matchesSearch && matchesCategory && matchesCondition && matchesPopular && matchesMinPrice && matchesMaxPrice;
   });
 
-  const renderItem = ({ item }: { item: Item }) => { // 3. Type renderItem's item prop
+  const renderItem = ({ item }: { item: Item }) => { // Type renderItem's item prop
     const discountedPrice = item.discountPercentage > 0
       ? item.price * (1 - item.discountPercentage / 100)
       : item.price;
@@ -296,7 +295,7 @@ export default function ForSaleScreen() {
               <Switch
                 onValueChange={setShowPopular}
                 value={showPopular}
-                trackColor={{ false: '#767577', true: '#FFB300' }} // Orange for active
+                trackColor={{ false: '#767577', true: '#FFB300' }}
                 thumbColor={showPopular ? '#f4f3f4' : '#f4f3f4'}
               />
             </View>
@@ -341,29 +340,29 @@ export default function ForSaleScreen() {
   );
 }
 
-// Styles for the main ForSaleScreen
+// Styles for ForSale
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: '#FFF8E1', // Light orange/cream background
+    backgroundColor: '#FFF8E1', 
   },
   header: {
     padding: 20,
-    paddingTop: Platform.OS === 'android' ? 10 : 10, // More top padding
-    backgroundColor: '#FF9800', // Orange header
-    borderBottomWidth: 0, // No bottom border
+    paddingTop: Platform.OS === 'android' ? 10 : 10, 
+    backgroundColor: '#FF9800', 
+    borderBottomWidth: 0, 
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
-    elevation: 8, // Android shadow
+    elevation: 8, 
   },
   headerTitle: {
     fontSize: 23,
     fontWeight: 'bold',
-    color: '#FFFFFF', // White text
+    color: '#FFFFFF', 
   },
   filterContainer: {
     padding: 15,
@@ -381,14 +380,14 @@ const styles = StyleSheet.create({
     height: 45,
     borderColor: '#CCC',
     borderWidth: 1,
-    borderRadius: 25, // More rounded
+    borderRadius: 25, 
     paddingHorizontal: 15,
     marginBottom: 15,
     backgroundColor: '#F5F5F5',
     fontSize: 16,
   },
   filterSection: {
-    marginBottom: 15, // Added spacing between filter rows
+    marginBottom: 15,
   },
   filterLabel: {
     marginBottom: 8,
@@ -403,13 +402,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: '#EAEAEA', // Light grey for inactive
+    backgroundColor: '#EAEAEA', 
     marginRight: 10,
     borderWidth: 1,
     borderColor: '#D0D0D0',
   },
   filterButtonActive: {
-    backgroundColor: '#FF9800', // Orange for active
+    backgroundColor: '#FF9800', 
     borderColor: '#FF9800',
   },
   filterButtonText: {
@@ -435,7 +434,6 @@ const styles = StyleSheet.create({
     color: '#333333',
   },
   collapsibleFiltersContent: {
-    // Add any specific styles for the expanded content if needed
   },
   toggleRow: {
     flexDirection: 'row',
@@ -454,7 +452,7 @@ const styles = StyleSheet.create({
     height: 45,
     borderColor: '#CCC',
     borderWidth: 1,
-    borderRadius: 25, // More rounded
+    borderRadius: 25, 
     paddingHorizontal: 15,
     backgroundColor: '#F5F5F5',
     textAlign: 'center',
@@ -477,14 +475,14 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12, // More rounded card corners
+    borderRadius: 12, 
     overflow: 'hidden',
-    elevation: 5, // Stronger Android shadow
-    shadowColor: '#000', // iOS shadow
+    elevation: 5, 
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
-    borderWidth: 0, // No border
+    borderWidth: 0, 
   },
   cardImage: {
     width: '100%',
@@ -496,7 +494,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 17,
-    fontWeight: '700', // Bolder name
+    fontWeight: '700',
     marginBottom: 5,
     color: '#333333',
   },
@@ -508,7 +506,7 @@ const styles = StyleSheet.create({
   itemPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FF9800', // Orange for price
+    color: '#FF9800', 
     marginRight: 6,
   },
   originalPriceText: {
@@ -518,7 +516,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   discountBadgeCard: {
-    backgroundColor: '#00C853', // Brighter green for discount
+    backgroundColor: '#00C853', 
     color: '#fff',
     fontSize: 11,
     fontWeight: 'bold',
