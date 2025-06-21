@@ -1,5 +1,5 @@
 // app/screens/ForSaleItem.tsx
-import React, { FC } from 'react'; // Added FC to import
+import React, { FC } from 'react'; 
 import {
   View,
   Text,
@@ -125,18 +125,18 @@ function ItemDetailsScreen({ route, navigation }: ItemDetailsScreenProps) {
 
 export default ItemDetailsScreen;
 
-// Styles for the ItemDetailsScreen
+// Styles for the ItemScreen
 const detailStyles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: '#FFF8E1', // Light orange/cream background
+    backgroundColor: '#FFF8E1', 
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    paddingTop: Platform.OS === 'android' ? 40 : 20,
-    backgroundColor: '#FF9800', // Orange header
+    paddingTop: Platform.OS === 'android' ? 10 : 10,
+    backgroundColor: '#FF9800', 
     borderBottomWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -146,13 +146,13 @@ const detailStyles = StyleSheet.create({
   },
   backButton: {
     marginRight: 15,
-    padding: 5, // Make touch area larger
+    padding: 5, 
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    flex: 1, // Allow title to take remaining space
+    flex: 1, 
   },
   content: {
     flex: 1,
