@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router'; // Correct import for navigation
+import { useNavigation } from 'expo-router'; // import for navigation
 import { ParamListBase, NavigationProp } from '@react-navigation/native'; // Import for navigation typing
 
 const { width } = Dimensions.get('window');
