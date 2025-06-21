@@ -2,6 +2,6 @@
 import React from 'react';
 import FreeFoodScreen from './screens/FreeFoodScreen';
 
-export default function FreeFood() { // Correctly named FreeFood.tsx for FreeFoodScreen
+export default function FreeFood() { 
   return <FreeFoodScreen />;
 }
