@@ -238,6 +238,5 @@ const detailStyles = StyleSheet.create({
   },
   starRatingContainer: {
     flexDirection: 'row',
-    // Removed marginBottom as it's not present in original detailStyles.starRatingContainer
   },
 });
