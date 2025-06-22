@@ -13,7 +13,7 @@ export default function Login() {
       const { createdSessionId, setActive } = await startOAuthFlow();
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
-        router.replace('../home');
+        router.replace('/GetStarted');
       }
     } catch (err) {
       console.error('OAuth error', err);

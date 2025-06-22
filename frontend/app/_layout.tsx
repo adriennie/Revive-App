@@ -21,6 +21,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)/login" options={{ title: 'Login' }} />
           <Stack.Screen name="(auth)/sign-up" options={{ title: 'Sign Up' }} />
           <Stack.Screen name="home/index" options={{ title: 'Home' }} />
+          <Stack.Screen name="GetStarted" options={{ title: 'Get Started' }} />
         </Stack>
       </SafeAreaProvider>
     </ClerkProvider>

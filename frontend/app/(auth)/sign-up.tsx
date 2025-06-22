@@ -14,7 +14,7 @@ export default function SignUp() {
     if (!isLoaded) return;
     try {
       await signUp.create({ emailAddress: email, password });
-      router.replace('../home');
+      router.replace('/GetStarted');
     } catch (err) {
       console.error('Sign up error', err);
     }
