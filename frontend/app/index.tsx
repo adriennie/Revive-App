@@ -26,16 +26,29 @@ export default function LandingPage() {
         <Text style={styles.logo}>🧡</Text>
         <Text style={styles.title}>Re:Vive</Text>
         <Text style={styles.tagline}>Where shared goods find new life</Text>
-        <View style={styles.featureRow}>
-          {features.map(f => (
-            <Card key={f.title} style={styles.featureCard} elevation={4}>
-              <Card.Content style={{ alignItems: 'center' }}>
-                <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
-                <Text style={styles.featureTitle}>{f.title}</Text>
-                <Text style={styles.featureDesc}>{f.desc}</Text>
-              </Card.Content>
-            </Card>
-          ))}
+        <View style={styles.grid}>
+          <View style={styles.gridRow}>
+            {[features[0], features[1]].map(f => (
+              <Card key={f.title} style={styles.featureCard} elevation={4}>
+                <Card.Content style={{ alignItems: 'center' }}>
+                  <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureDesc}>{f.desc}</Text>
+                </Card.Content>
+              </Card>
+            ))}
+          </View>
+          <View style={styles.gridRow}>
+            {[features[2], features[3]].map(f => (
+              <Card key={f.title} style={styles.featureCard} elevation={4}>
+                <Card.Content style={{ alignItems: 'center' }}>
+                  <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureDesc}>{f.desc}</Text>
+                </Card.Content>
+              </Card>
+            ))}
+          </View>
         </View>
         <Button
           mode="contained"
@@ -79,18 +92,28 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
-  featureRow: {
+  grid: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginBottom: 32,
-    gap: 12,
+    justifyContent: 'space-between',
+    width: '100%',
+    height: 'auto',
+    marginBottom: 8,
+    gap: 8,
   },
   featureCard: {
-    width: width / 2.3,
-    margin: 6,
+    flex: 1,
+    marginHorizontal: 6,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.95)',
+    height: 150,
+    minWidth: 0,
+    maxWidth: '48%',
   },
   featureIcon: { fontSize: 32, marginBottom: 6 },
   featureTitle: { fontWeight: 'bold', fontSize: 16, color: '#fb923c', marginBottom: 2 },
