@@ -1,57 +1,52 @@
 import React from 'react';
-import { View, StyleSheet, ImageBackground } from 'react-native';
+import { View, StyleSheet, ImageBackground, Dimensions } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
-import { useOAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 
-export default function Login() {
-  const router = useRouter();
-  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+const { width } = Dimensions.get('window');
 
-  const handleSignInWithGoogle = async () => {
-    try {
-      const { createdSessionId, setActive } = await startOAuthFlow();
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-        router.replace('/GetStarted');
-      }
-    } catch (err) {
-      console.error('OAuth error', err);
-    }
-  };
+const features = [
+  { icon: 'gift', title: 'Share & Care', desc: 'Donate and receive essentials' },
+  { icon: 'account-group', title: 'Community', desc: 'Connect with neighbors' },
+  { icon: 'recycle', title: 'Reduce Waste', desc: 'Give items a second life' },
+  { icon: 'swap-horizontal', title: 'Barter', desc: 'Exchange with credits' },
+];
+
+export default function LandingPage() {
+  const router = useRouter();
 
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80' }}
+      source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }}
       style={styles.bg}
       blurRadius={2}
     >
       <View style={styles.overlay} />
-      <View style={styles.centered}>
-        <Card style={styles.card} elevation={5}>
-          <Card.Content>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to Re:Vive</Text>
-            <Button
-              mode="contained"
-              icon="google"
-              style={styles.googleBtn}
-              labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
-              onPress={handleSignInWithGoogle}
-              contentStyle={{ paddingVertical: 8 }}
-            >
-              Continue with Google
-            </Button>
-            <Button
-              mode="text"
-              style={styles.linkBtn}
-              labelStyle={{ color: '#fb923c', fontWeight: 'bold' }}
-              onPress={() => router.push('./sign-up')}
-            >
-              Create Account
-            </Button>
-          </Card.Content>
-        </Card>
+      <View style={styles.container}>
+        <Text style={styles.logo}>🧡</Text>
+        <Text style={styles.title}>Re:Vive</Text>
+        <Text style={styles.tagline}>Where shared goods find new life</Text>
+        <View style={styles.featureRow}>
+          {features.map(f => (
+            <Card key={f.title} style={styles.featureCard} elevation={4}>
+              <Card.Content style={{ alignItems: 'center' }}>
+                <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
+                <Text style={styles.featureTitle}>{f.title}</Text>
+                <Text style={styles.featureDesc}>{f.desc}</Text>
+              </Card.Content>
+            </Card>
+          ))}
+        </View>
+        <Button
+          mode="contained"
+          style={styles.cta}
+          labelStyle={{ fontSize: 18, fontWeight: 'bold' }}
+          onPress={() => router.push('/(auth)/login')}
+          contentStyle={{ paddingVertical: 8 }}
+        >
+          Get Started
+        </Button>
+        <Text style={styles.stats}>10K+ Items Donated • 5K+ Members • 500+ NGOs</Text>
       </View>
     </ImageBackground>
   );
@@ -61,44 +56,58 @@ const styles = StyleSheet.create({
   bg: { flex: 1, width: '100%', height: '100%' },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
-  centered: {
+  container: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 20,
+    paddingTop: 60,
   },
-  card: {
-    width: '100%',
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingVertical: 24,
-    paddingHorizontal: 12,
-  },
+  logo: { fontSize: 64, marginBottom: 8 },
   title: {
-    fontSize: 28,
+    fontSize: 44,
     fontWeight: 'bold',
     color: '#fb923c',
-    textAlign: 'center',
-    marginBottom: 8,
+    letterSpacing: 1,
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 16,
+  tagline: {
+    fontSize: 18,
     color: '#374151',
-    textAlign: 'center',
     marginBottom: 24,
+    textAlign: 'center',
   },
-  googleBtn: {
-    backgroundColor: 'black',
+  featureRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 32,
+    gap: 12,
+  },
+  featureCard: {
+    width: width / 2.3,
+    margin: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  featureIcon: { fontSize: 32, marginBottom: 6 },
+  featureTitle: { fontWeight: 'bold', fontSize: 16, color: '#fb923c', marginBottom: 2 },
+  featureDesc: { fontSize: 13, color: '#374151', textAlign: 'center' },
+  cta: {
+    width: '90%',
     borderRadius: 30,
+    backgroundColor: '#fb923c',
+    marginTop: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#fb923c',
-    elevation: 2,
+    elevation: 4,
   },
-  linkBtn: {
+  stats: {
+    color: '#6b7280',
+    fontSize: 14,
     marginTop: 8,
-    alignSelf: 'center',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
