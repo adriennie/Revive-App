@@ -19,7 +19,6 @@ export default function RootLayout() {
           <Stack.Screen name="LandingPage" options={{ title: 'Welcome' }} />
           <Stack.Screen name="(auth)/login" options={{ title: 'Login' }} />
           <Stack.Screen name="(auth)/sign-up" options={{ title: 'Sign Up' }} />
-
           {/* New Top-Level Feature Screens */}
           <Stack.Screen name="FreeFood" options={{ title: 'Free Food' }} />
           <Stack.Screen name="FreeNonFood" options={{ title: 'Free Non-Food' }} />
@@ -30,10 +29,9 @@ export default function RootLayout() {
           <Stack.Screen name="Message" options={{ title: 'Messages' }} />
           <Stack.Screen name="Community" options={{ title: 'Community' }} />
 
-          {/* Tab layout - Home, Explore, Add, Community, Messages */}
-          <Stack.Screen name="(tabs)/index" options={{ title: 'Home Tabs' }} />
           {/* Item Details Screen - Used by ForSaleScreen, FreeFoodScreen, etc. */}
-          <Stack.Screen name="screens/ForSaleItem" options={{ title: 'Item Details' }} />
+          <Stack.Screen name="ProductScreen" options={{ title: 'Product Details' }} />
+          
 
 
         </Stack>
