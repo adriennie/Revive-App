@@ -22,6 +22,7 @@ export default function RootLayout() {
 
           {/* Tab layout - Home, Explore, Add, Community, Messages */}
           <Stack.Screen name="(tabs)/index" options={{ title: 'Home Tabs' }} />
+          <Stack.Screen name="GetStarted" options={{ title: 'Get Started' }} />
 
         </Stack>
       </SafeAreaProvider>
