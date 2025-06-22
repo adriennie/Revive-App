@@ -11,10 +11,8 @@ import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 const categories = [
-  { title: 'Free food', route: '/FreeFood' },
-  { title: 'Free non-food', route: '/FreeNonFood' },
-  { title: 'For sale', route: '/ForSale' },
-  { title: 'Wanted', route: '/Wanted' },
+  { title: 'Free Food', route: '/FreeFood' },
+  { title: 'Free Non-Food', route: '/FreeNonFood' },
 ];
 
 export default function GetStarted({ userName = 'Guest' }) {
@@ -42,6 +40,7 @@ export default function GetStarted({ userName = 'Guest' }) {
 
       {/* ───── BODY ───── */}
       <View style={styles.body}>
+        <Text style={styles.sectionTitle}>Explore Categories</Text>
         <View style={styles.grid}>
           {categories.map(({ title, route }) => (
             <TouchableOpacity
@@ -60,30 +59,29 @@ export default function GetStarted({ userName = 'Guest' }) {
         <View style={styles.tabItem}>
           <Ionicons name="home-outline" size={22} color="#FF9800" />
           <Text style={styles.tabTextActive}>Home</Text>
-        </View>
-
-        <View style={styles.tabItem}>
-          <Ionicons name="search" size={22} color="#000" />
-          <Text style={styles.tabText}>Explore</Text>
-        </View>
-
-        <View style={styles.addButtonWrapper}>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="add" size={24} color="#fff" />
+          </View>
+          <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => router.push('/Explore')}
+          >
+            <Ionicons name="search" size={22} color="#000" />
+            <Text style={styles.tabText}>Explore</Text>
           </TouchableOpacity>
-          <Text style={styles.tabText}>Add</Text>
-        </View>
-
-        <View style={styles.tabItem}>
-          <Ionicons name="chatbubble-outline" size={22} color="#000" />
-          <Text style={styles.tabText}>Community</Text>
-        </View>
-
-        <View style={styles.tabItem}>
-          <MaterialIcons name="email" size={22} color="#000" />
-          <Text style={styles.tabText}>Messages</Text>
-        </View>
-      </View>
+          <View style={styles.addButtonWrapper}>
+            <TouchableOpacity style={styles.addButton}>
+              <Ionicons name="add" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.tabText}>Add</Text>
+          </View>
+          <View style={styles.tabItem}>
+            <MaterialIcons name="person-outline" size={22} color="#000" />
+            <Text style={styles.tabText}>Profile</Text>
+            </View>
+          <View style={styles.tabItem}>
+            <Ionicons name="chatbubble-outline" size={22} color="#000" />
+            <Text style={styles.tabText}>Messages</Text>
+            </View>
+          </View>
     </SafeAreaView>
   );
 }
@@ -139,22 +137,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#333',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    rowGap: 16,
   },
   card: {
     width: '48%',
-    paddingVertical: 16,
+    paddingVertical: 24,
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 12,
     backgroundColor: ORANGE_LIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardText: {
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
+    color: '#333',
   },
   tabBar: {
     flexDirection: 'row',
