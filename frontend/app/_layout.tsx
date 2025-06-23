@@ -13,8 +13,8 @@ export default function RootLayout() {
         
         <Stack
           screenOptions={{
-            headerShown: false, // Hide header for all screens
-            animation: 'slide_from_right', // Smooth transitions
+            headerShown: false,
+            animation: 'slide_from_right',
           }}
         >
           <Stack.Screen name="index" options={{ title: 'Welcome' }} />
@@ -34,7 +34,6 @@ export default function RootLayout() {
           {/* Item Details Screen - Used by ForSaleScreen, FreeFoodScreen, etc. */}
           <Stack.Screen name="ProductScreen" options={{ title: 'Product Details' }} />
           
-
         </Stack>
       </SafeAreaProvider>
     </ClerkProvider>
