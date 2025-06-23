@@ -1,7 +1,7 @@
-// app/FreeFood.tsx
+// app/Add.tsx
 import React from 'react';
 import AddScreen from './screens/AddScreen';
 
-export default function FreeFood() {
+export default function Add() {
   return <AddScreen />;
 }
