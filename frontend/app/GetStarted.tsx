@@ -9,15 +9,23 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useUser } from '@clerk/clerk-expo';
 
 const categories = [
-  { title: 'Free Food', route: '/FreeFood' },
-  { title: 'Free Non-Food', route: '/FreeNonFood' },
+  { title: 'Free food', route: '/FreeFood' },
+  { title: 'Free non-food', route: '/FreeNonFood' },
+  { title: 'For sale', route: '/ForSale' },
+  { title: 'Wanted', route: '/Wanted' },
 ];
 
-export default function GetStarted({ userName = 'Guest' }) {
-  const location = 'Lucknow';
+export default function GetStarted() {
+  const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
+  const location = 'XYZ';
+
+  if (!isLoaded) return null;
+
+  const userName = isSignedIn ? user?.firstName ?? 'Guest' : 'Guest';
 
   return (
     <SafeAreaView style={styles.safeContainer}>
