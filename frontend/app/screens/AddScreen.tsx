@@ -17,6 +17,60 @@ import * as FileSystem from 'expo-file-system';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 
+// Add a type for the upload function parameters
+interface UploadToSupabaseStorageParams {
+  fileUri: string;
+  filePath: string;
+  mimeType: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+}
+
+async function uploadToSupabaseStorage({ fileUri, filePath, mimeType, supabaseUrl, supabaseAnonKey }: UploadToSupabaseStorageParams) {
+  console.log('[Upload] fileUri:', fileUri);
+  console.log('[Upload] filePath:', filePath);
+  console.log('[Upload] mimeType:', mimeType);
+  try {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: fileUri,
+      name: filePath,
+      type: mimeType,
+    } as any);
+
+    console.log('[Upload] FormData:', formData);
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/item-images/${filePath}`;
+    console.log('[Upload] Upload URL:', uploadUrl);
+
+    const response = await fetch(
+      uploadUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'apikey': supabaseAnonKey,
+          // Do NOT set Content-Type
+        },
+        body: formData,
+      }
+    );
+
+    console.log('[Upload] Response status:', response.status);
+    if (!response.ok) {
+      const text = await response.text();
+      console.log('[Upload] Error response text:', text);
+      throw new Error(`Upload failed: ${response.status} ${text}`);
+    }
+
+    const json = await response.json();
+    console.log('[Upload] Success response JSON:', json);
+    return json;
+  } catch (err) {
+    console.log('[Upload] Exception:', err);
+    throw err;
+  }
+}
+
 export default function AddItemScreen() {
   const [isFood, setIsFood] = useState(false);
   const [name, setName] = useState('');
@@ -84,34 +138,51 @@ export default function AddItemScreen() {
       let publicImageUrl = '';
       if (imageUrl) {
         // 1. Upload image to Supabase Storage
-        const fileExt = imageUrl.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
         let blob;
         try {
           blob = await getBlobFromUri(imageUrl);
         } catch (e) {
           setLoading(false);
           Alert.alert('Image error', 'Could not read image file.');
+          console.log('[AddScreen] Error getting blob from URI:', e);
           return;
         }
 
-        const { error: uploadError } = await supabase.storage
-          .from('item-images')
-          .upload(filePath, blob, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: blob.type || 'image/jpeg',
+        // Infer file extension from blob type or default to jpg
+        let fileExt = 'jpg';
+        if (blob && blob.type) {
+          if (blob.type === 'image/png') fileExt = 'png';
+          else if (blob.type === 'image/jpeg') fileExt = 'jpg';
+          // add more types as needed
+        }
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = fileName;
+
+        console.log('[AddScreen] Uploading file:', { filePath, blob, type: blob.type, size: blob.size, imageUrl });
+
+        try {
+          // Copy file to document directory for accessibility
+          const newPath = FileSystem.documentDirectory + fileName;
+          await FileSystem.copyAsync({ from: imageUrl, to: newPath });
+          console.log('[AddScreen] Copied file to:', newPath);
+
+          // Call the upload function
+          await uploadToSupabaseStorage({
+            fileUri: newPath,
+            filePath,
+            mimeType: blob.type || 'image/jpeg',
+            supabaseUrl: 'https://bzqqeativrabfbcqlzzl.supabase.co', // <-- replace with your actual URL or import from config
+            supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6cXFlYXRpdnJhYmZiY3FsenpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2NTQ3ODksImV4cCI6MjA2NjIzMDc4OX0.sY1Y_g0GG2WIM36P4mMEB4toxtGC_HqOU4olWMsNxiI', // <-- replace with your actual anon key or import from config
           });
 
-        if (uploadError) {
+          // Get the public URL
+          const { data } = supabase.storage.from('item-images').getPublicUrl(filePath);
+          publicImageUrl = data.publicUrl;
+        } catch (uploadError) {
           Alert.alert('Image upload failed', uploadError.message);
           setLoading(false);
           return;
         }
-
-        const { data } = supabase.storage.from('item-images').getPublicUrl(filePath);
-        publicImageUrl = data.publicUrl;
       }
 
       const itemData = {

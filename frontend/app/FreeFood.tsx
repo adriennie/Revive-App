@@ -22,7 +22,7 @@ const CARD_WIDTH = (width - 48) / 2;
 interface Item {
   id: string;
   name: string;
-  imageUrl: string;
+  image_url: string;
   description: string;
   category: string;
   expiryDate: string;
@@ -77,7 +77,7 @@ const FreeFood: FC = () => {
       style={styles.card}
       onPress={() => router.push({ pathname: '/ProductScreen', params: { id: item.id } })}
     >
-      <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
+      <Image source={{ uri: item.image_url }} style={styles.cardImage} />
       <View style={styles.cardContent}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemLocation}>{item.location}</Text>
