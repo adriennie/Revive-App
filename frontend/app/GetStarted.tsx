@@ -87,7 +87,7 @@ export default function GetStarted() {
         </View>
 
         <View style={styles.addButtonWrapper}>
-          <TouchableOpacity style={styles.addButton}>
+          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/Add')}>
             <Ionicons name="add" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.tabText}>Add</Text>
