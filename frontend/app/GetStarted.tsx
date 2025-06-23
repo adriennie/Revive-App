@@ -14,8 +14,8 @@ import { useUser } from '@clerk/clerk-expo';
 const categories = [
   { title: 'Free food', route: '/FreeFood' },
   { title: 'Free non-food', route: '/FreeNonFood' },
-  { title: 'For sale', route: '/ForSale' },
-  { title: 'Wanted', route: '/Wanted' },
+  // { title: 'For sale', route: '/ForSale' },
+  // { title: 'Wanted', route: '/Wanted' },
 ];
 
 export default function GetStarted() {
