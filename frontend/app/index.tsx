@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ImageBackground, Dimensions } from 'react-native';
+import { View, StyleSheet, ImageBackground, Dimensions, Platform } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 
@@ -26,30 +26,23 @@ export default function LandingPage() {
         <Text style={styles.logo}>🧡</Text>
         <Text style={styles.title}>Re:Vive</Text>
         <Text style={styles.tagline}>Where shared goods find new life</Text>
+
         <View style={styles.grid}>
-          <View style={styles.gridRow}>
-            {[features[0], features[1]].map(f => (
-              <Card key={f.title} style={styles.featureCard} elevation={4}>
+          {features.map((f, index) => (
+            <View key={f.title} style={[styles.cardWrapper, index % 2 !== 0 && { marginLeft: 10 }]}>
+              <Card style={styles.featureCard} elevation={3}>
                 <Card.Content style={{ alignItems: 'center' }}>
-                  <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
+                  <Text style={styles.featureIcon}>
+                    {f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}
+                  </Text>
                   <Text style={styles.featureTitle}>{f.title}</Text>
                   <Text style={styles.featureDesc}>{f.desc}</Text>
                 </Card.Content>
               </Card>
-            ))}
-          </View>
-          <View style={styles.gridRow}>
-            {[features[2], features[3]].map(f => (
-              <Card key={f.title} style={styles.featureCard} elevation={4}>
-                <Card.Content style={{ alignItems: 'center' }}>
-                  <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
-                  <Text style={styles.featureTitle}>{f.title}</Text>
-                  <Text style={styles.featureDesc}>{f.desc}</Text>
-                </Card.Content>
-              </Card>
-            ))}
-          </View>
+            </View>
+          ))}
         </View>
+
         <Button
           mode="contained"
           style={styles.cta}
@@ -76,7 +69,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
   },
   logo: { fontSize: 64, marginBottom: 8 },
   title: {
@@ -93,31 +86,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   grid: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
-  },
-  gridRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    height: 'auto',
-    marginBottom: 8,
-    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  cardWrapper: {
+    width: (width - 60) / 2, // spacing-safe for 2 cards per row
+    marginBottom: 12,
   },
   featureCard: {
-    flex: 1,
-    marginHorizontal: 6,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.95)',
     height: 150,
-    minWidth: 0,
-    maxWidth: '48%',
+    justifyContent: 'center',
   },
   featureIcon: { fontSize: 32, marginBottom: 6 },
-  featureTitle: { fontWeight: 'bold', fontSize: 16, color: '#fb923c', marginBottom: 2 },
-  featureDesc: { fontSize: 13, color: '#374151', textAlign: 'center' },
+  featureTitle: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#fb923c',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  featureDesc: {
+    fontSize: 13,
+    color: '#374151',
+    textAlign: 'center',
+  },
   cta: {
     width: '90%',
     borderRadius: 30,
