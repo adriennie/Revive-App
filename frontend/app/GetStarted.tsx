@@ -6,106 +6,89 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
-  useWindowDimensions,
-  ScrollView,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useUser } from '@clerk/clerk-expo';
 
 const categories = [
-  { title: 'Free food', route: '/FreeFood' },
-  { title: 'Free non-food', route: '/FreeNonFood' },
-  { title: 'For sale', route: '/ForSale' },
-  { title: 'Wanted', route: '/Wanted' },
+  { title: 'Free Food', route: '/FreeFood' },
+  { title: 'Free Non-Food', route: '/FreeNonFood' },
 ];
 
-const HEADER_BG = '#FFF4E5';
-const ORANGE_LIGHT = '#FFE0B2';
-const PRIMARY_ACC = '#FF9800';
-
-export default function GetStarted() {
-  const { width } = useWindowDimensions();
+export default function GetStarted({ userName = 'Guest' }) {
+  const location = 'Lucknow';
   const router = useRouter();
-  const { isLoaded, isSignedIn, user } = useUser();
-  const location = 'XYZ';
-
-  if (!isLoaded) return null;
-  const userName = isSignedIn ? user?.firstName ?? 'Guest' : 'Guest';
-
-  // Responsive card width
-  const CARD_GAP = 16;
-  const SIDE_PADDING = 20;
-  const CARD_WIDTH = (width - SIDE_PADDING * 2 - CARD_GAP) / 2;
 
   return (
     <SafeAreaView style={styles.safeContainer}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        {/* ───── HEADER ───── */}
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Text style={styles.greeting}>Good afternoon, {userName}</Text>
-            <View style={styles.headerIcons}>
-              <Ionicons name="notifications-outline" size={22} color="#000" style={styles.iconGap} />
-              <Entypo name="menu" size={22} color="#000" />
-            </View>
-          </View>
-
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={14} color="#000" />
-            <Text style={styles.locationText}>{location}</Text>
-          </View>
-          <Text style={styles.subtext}>Listings within 5km</Text>
-        </View>
-
-        {/* ───── BODY ───── */}
-        <View style={[styles.body, { paddingHorizontal: SIDE_PADDING }]}>
-          <View style={styles.grid}>
-            {categories.map(({ title, route }) => (
-              <TouchableOpacity
-                key={title}
-                style={[styles.card, { width: CARD_WIDTH }]}
-                onPress={() => router.push(route as any)}
-              >
-                <Text style={styles.cardText}>{title}</Text>
-              </TouchableOpacity>
-            ))}
+      {/* ───── HEADER ───── */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Text style={styles.greeting}>Good afternoon, {userName}</Text>
+          <View style={styles.headerIcons}>
+            <Ionicons name="notifications-outline" size={22} color="#000" style={styles.iconGap} />
+            <Entypo name="menu" size={22} color="#000" />
           </View>
         </View>
-      </ScrollView>
+
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={14} color="#000" />
+          <Text style={styles.locationText}>{location}</Text>
+        </View>
+        <Text style={styles.subtext}>Listings within 5km</Text>
+      </View>
+
+      {/* ───── BODY ───── */}
+      <View style={styles.body}>
+        <Text style={styles.sectionTitle}>Explore Categories</Text>
+        <View style={styles.grid}>
+          {categories.map(({ title, route }) => (
+            <TouchableOpacity
+              key={title}
+              style={styles.card}
+              onPress={() => router.push(route as any)}
+            >
+              <Text style={styles.cardText}>{title}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
       {/* ───── FOOTER / TAB BAR ───── */}
       <View style={styles.tabBar}>
         <View style={styles.tabItem}>
-          <Ionicons name="home-outline" size={22} color={PRIMARY_ACC} />
+          <Ionicons name="home-outline" size={22} color="#FF9800" />
           <Text style={styles.tabTextActive}>Home</Text>
-        </View>
-
-        <View style={styles.tabItem}>
-          <Ionicons name="search" size={22} color="#000" />
-          <Text style={styles.tabText}>Explore</Text>
-        </View>
-
-        <View style={styles.addButtonWrapper}>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="add" size={24} color="#fff" />
+          </View>
+          <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => router.push('/Explore')}
+          >
+            <Ionicons name="search" size={22} color="#000" />
+            <Text style={styles.tabText}>Explore</Text>
           </TouchableOpacity>
-          <Text style={styles.tabText}>Add</Text>
-        </View>
-
-        <View style={styles.tabItem}>
-          <Ionicons name="chatbubble-outline" size={22} color="#000" />
-          <Text style={styles.tabText}>Community</Text>
-        </View>
-
-        <View style={styles.tabItem}>
-          <MaterialIcons name="email" size={22} color="#000" />
-          <Text style={styles.tabText}>Messages</Text>
-        </View>
-      </View>
+          <View style={styles.addButtonWrapper}>
+            <TouchableOpacity style={styles.addButton}>
+              <Ionicons name="add" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.tabText}>Add</Text>
+          </View>
+          <View style={styles.tabItem}>
+            <MaterialIcons name="person-outline" size={22} color="#000" />
+            <Text style={styles.tabText}>Profile</Text>
+            </View>
+          <View style={styles.tabItem}>
+            <Ionicons name="chatbubble-outline" size={22} color="#000" />
+            <Text style={styles.tabText}>Messages</Text>
+            </View>
+          </View>
     </SafeAreaView>
   );
 }
+
+const HEADER_BG = '#FFF4E5';
+const ORANGE_LIGHT = '#FFE0B2';
+const PRIMARY_ACC = '#FF9800';
 
 const styles = StyleSheet.create({
   safeContainer: {
@@ -151,18 +134,27 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    paddingHorizontal: 20,
     paddingTop: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#333',
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    rowGap: 16,
   },
   card: {
-    paddingVertical: 18,
+    width: '48%',
+    paddingVertical: 24,
     paddingHorizontal: 12,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 12,
     backgroundColor: ORANGE_LIGHT,
     alignItems: 'center',
     justifyContent: 'center',
@@ -171,6 +163,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+    color: '#333',
   },
   tabBar: {
     flexDirection: 'row',
