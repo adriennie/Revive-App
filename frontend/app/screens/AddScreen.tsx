@@ -10,66 +10,13 @@ import {
   Switch,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
-
-// Add a type for the upload function parameters
-interface UploadToSupabaseStorageParams {
-  fileUri: string;
-  filePath: string;
-  mimeType: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-}
-
-async function uploadToSupabaseStorage({ fileUri, filePath, mimeType, supabaseUrl, supabaseAnonKey }: UploadToSupabaseStorageParams) {
-  console.log('[Upload] fileUri:', fileUri);
-  console.log('[Upload] filePath:', filePath);
-  console.log('[Upload] mimeType:', mimeType);
-  try {
-    const formData = new FormData();
-    formData.append('file', {
-      uri: fileUri,
-      name: filePath,
-      type: mimeType,
-    } as any);
-
-    console.log('[Upload] FormData:', formData);
-    const uploadUrl = `${supabaseUrl}/storage/v1/object/item-images/${filePath}`;
-    console.log('[Upload] Upload URL:', uploadUrl);
-
-    const response = await fetch(
-      uploadUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'apikey': supabaseAnonKey,
-          // Do NOT set Content-Type
-        },
-        body: formData,
-      }
-    );
-
-    console.log('[Upload] Response status:', response.status);
-    if (!response.ok) {
-      const text = await response.text();
-      console.log('[Upload] Error response text:', text);
-      throw new Error(`Upload failed: ${response.status} ${text}`);
-    }
-
-    const json = await response.json();
-    console.log('[Upload] Success response JSON:', json);
-    return json;
-  } catch (err) {
-    console.log('[Upload] Exception:', err);
-    throw err;
-  }
-}
 
 export default function AddItemScreen() {
   const [isFood, setIsFood] = useState(false);
@@ -119,13 +66,6 @@ export default function AddItemScreen() {
     }
   };
 
-  // Helper to get a blob from a local file URI robustly
-  const getBlobFromUri = async (uri: string) => {
-    const response = await fetch(uri);
-    if (!response.ok) throw new Error('Failed to fetch file');
-    return await response.blob();
-  };
-
   const handleSubmit = async () => {
     if (!name || !description || !category || !condition || !location || !price) {
       Alert.alert('Error', 'Please fill out all required fields.');
@@ -133,56 +73,42 @@ export default function AddItemScreen() {
     }
 
     setLoading(true);
+    let publicImageUrl = '';
 
     try {
-      let publicImageUrl = '';
       if (imageUrl) {
-        // 1. Upload image to Supabase Storage
-        let blob;
-        try {
-          blob = await getBlobFromUri(imageUrl);
-        } catch (e) {
-          setLoading(false);
-          Alert.alert('Image error', 'Could not read image file.');
-          console.log('[AddScreen] Error getting blob from URI:', e);
-          return;
-        }
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
 
-        // Infer file extension from blob type or default to jpg
-        let fileExt = 'jpg';
-        if (blob && blob.type) {
-          if (blob.type === 'image/png') fileExt = 'png';
-          else if (blob.type === 'image/jpeg') fileExt = 'jpg';
-          // add more types as needed
-        }
+        const fileExt = blob.type === 'image/png' ? 'png' : 'jpg';
         const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = fileName;
+        const newPath = FileSystem.documentDirectory + fileName;
 
-        console.log('[AddScreen] Uploading file:', { filePath, blob, type: blob.type, size: blob.size, imageUrl });
+        await FileSystem.copyAsync({ from: imageUrl, to: newPath });
 
-        try {
-          // Copy file to document directory for accessibility
-          const newPath = FileSystem.documentDirectory + fileName;
-          await FileSystem.copyAsync({ from: imageUrl, to: newPath });
-          console.log('[AddScreen] Copied file to:', newPath);
+        const uploadUrl = `https://bzqqeativrabfbcqlzzl.supabase.co/storage/v1/object/item-images/${fileName}`;
+        const formData = new FormData();
+        formData.append('file', {
+          uri: newPath,
+          name: fileName,
+          type: blob.type,
+        } as any);
 
-          // Call the upload function
-          await uploadToSupabaseStorage({
-            fileUri: newPath,
-            filePath,
-            mimeType: blob.type || 'image/jpeg',
-            supabaseUrl: 'https://bzqqeativrabfbcqlzzl.supabase.co', // <-- replace with your actual URL or import from config
-            supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6cXFlYXRpdnJhYmZiY3FsenpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2NTQ3ODksImV4cCI6MjA2NjIzMDc4OX0.sY1Y_g0GG2WIM36P4mMEB4toxtGC_HqOU4olWMsNxiI', // <-- replace with your actual anon key or import from config
-          });
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer YOUR_SUPABASE_ANON_KEY`,
+            'apikey': 'YOUR_SUPABASE_ANON_KEY',
+          },
+          body: formData,
+        });
 
-          // Get the public URL
-          const { data } = supabase.storage.from('item-images').getPublicUrl(filePath);
-          publicImageUrl = data.publicUrl;
-        } catch (uploadError) {
-          Alert.alert('Image upload failed', uploadError.message);
-          setLoading(false);
-          return;
+        if (!uploadResponse.ok) {
+          throw new Error('Image upload failed');
         }
+
+        const { data } = supabase.storage.from('item-images').getPublicUrl(fileName);
+        publicImageUrl = data.publicUrl;
       }
 
       const itemData = {
@@ -200,122 +126,75 @@ export default function AddItemScreen() {
       const { error } = await supabase.from('itemdata').insert([itemData]);
 
       if (error) {
-        console.error('Supabase error:', error);
-        Alert.alert('Error', 'Failed to save item. Please check the console for details.');
+        Alert.alert('Error', 'Failed to save item.');
+        console.log(error);
         setLoading(false);
         return;
       }
 
       Alert.alert('Success!', 'Item has been added successfully.');
-      setName('');
-      setDescription('');
-      setCategory('');
-      setCondition('');
-      setLocation('');
-      setImageUrl('');
-      setPrice('');
-      setAge('');
-      setLoading(false);
       router.replace('/GetStarted');
     } catch (err) {
-      setLoading(false);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert('Upload Error', 'Something went wrong.');
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.header}>Add {isFood ? 'Food' : 'Sale Item'}</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.header}>Add {isFood ? 'Food' : 'Sale Item'}</Text>
 
-        <View style={styles.toggleRow}>
-          <Text style={styles.label}>Is this a food item?</Text>
-          <Switch
-            value={isFood}
-            onValueChange={setIsFood}
-            trackColor={{ false: '#767577', true: '#FF9800' }}
-            thumbColor="#fff"
-          />
-        </View>
-        
+          <View style={styles.toggleRow}>
+            <Text style={styles.label}>Is this a food item?</Text>
+            <Switch
+              value={isFood}
+              onValueChange={setIsFood}
+              trackColor={{ false: '#767577', true: '#FF9800' }}
+              thumbColor="#fff"
+            />
+          </View>
 
-        <TextInput style={styles.input} placeholder="Name" value={name} onChangeText={setName} />
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          placeholder="Description"
-          multiline
-          value={description}
-          onChangeText={setDescription}
-        />
-        <TextInput style={styles.input} placeholder="Category" value={category} onChangeText={setCategory} />
-        <TextInput style={styles.input} placeholder="Condition" value={condition} onChangeText={setCondition} />
-        <TextInput style={styles.input} placeholder="Location" value={location} onChangeText={setLocation} />
-        <TextInput
-          style={styles.input}
-          placeholder="Price (₹)"
-          keyboardType="numeric"
-          value={price}
-          onChangeText={setPrice}
-        />
+          <TextInput style={styles.input} placeholder="Name" value={name} onChangeText={setName} placeholderTextColor="#999" />
+          <TextInput style={[styles.input, styles.multiline]} placeholder="Description" multiline value={description} onChangeText={setDescription} placeholderTextColor="#999" />
+          <TextInput style={styles.input} placeholder="Category" value={category} onChangeText={setCategory} placeholderTextColor="#999" />
+          <TextInput style={styles.input} placeholder="Condition" value={condition} onChangeText={setCondition} placeholderTextColor="#999" />
+          <TextInput style={styles.input} placeholder="Location" value={location} onChangeText={setLocation} placeholderTextColor="#999" />
+          <TextInput style={styles.input} placeholder="Price (₹)" keyboardType="numeric" value={price} onChangeText={setPrice} placeholderTextColor="#999" />
 
-        {isFood && (
-          <TextInput
-            style={styles.input}
-            placeholder="Age in Minutes (e.g. 120)"
-            keyboardType="numeric"
-            value={age}
-            onChangeText={setAge}
-          />
-        )}
+          {isFood && (
+            <TextInput style={styles.input} placeholder="Age in Minutes (e.g. 120)" keyboardType="numeric" value={age} onChangeText={setAge} placeholderTextColor="#999" />
+          )}
 
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-          <TouchableOpacity style={styles.imageButton} onPress={handleImagePicker}>
-            <Text style={styles.imageButtonText}>Pick Image</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+            <TouchableOpacity style={styles.imageButton} onPress={handleImagePicker}>
+              <Text style={styles.imageButtonText}>Pick Image</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+              <Text style={styles.imageButtonText}>📷 Take Photo</Text>
+            </TouchableOpacity>
+          </View>
+
+          {imageUrl && (
+            <Image source={{ uri: imageUrl }} style={styles.imagePreview} />
+          )}
+
+          <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+            <Text style={styles.buttonText}>{loading ? 'Submitting...' : 'Submit'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-            <Text style={styles.imageButtonText}>📷 Take Photo</Text>
-          </TouchableOpacity>
-        </View>
-
-        {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.imagePreview} />
-        ) : null}
-
-        <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? 'Submitting...' : 'Submit'}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  imageButton: {
-    backgroundColor: '#FF9800',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-    flex: 0.48, // To give space between buttons
-  },
-  imageButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  imagePickerText: {
-    textAlign: 'center',
-    color: '#999',
-    marginBottom: 10,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 10,
-    marginBottom: 15,
-    resizeMode: 'cover',
-  },
-
   container: {
     flex: 1,
     backgroundColor: '#FFF8E1',
@@ -330,13 +209,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   label: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
   },
   input: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#CCC',
     borderRadius: 10,
@@ -344,16 +229,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: 15,
+    color: '#000',
   },
   multiline: {
     height: 80,
     textAlignVertical: 'top',
   },
-  toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  imageButton: {
+    backgroundColor: '#FF9800',
+    padding: 12,
+    borderRadius: 10,
     alignItems: 'center',
-    marginBottom: 20,
+    flex: 0.48,
+  },
+  imageButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    marginBottom: 15,
+    resizeMode: 'cover',
   },
   button: {
     backgroundColor: '#FF9800',
@@ -367,6 +265,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  
-  
 });

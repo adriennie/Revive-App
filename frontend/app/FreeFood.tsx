@@ -81,8 +81,8 @@ const FreeFood: FC = () => {
       <View style={styles.cardContent}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemLocation}>{item.location}</Text>
-        <Text style={styles.itemCondition}>Expiry: {item.expiryDate}</Text>
-        <Text style={styles.itemCondition}>{item.quantity} • {item.isVegetarian ? 'Veg' : 'Non-Veg'}</Text>
+        {/* <Text style={styles.itemCondition}>Expiry: {item.expiryDate}</Text> */}
+        {/* <Text style={styles.itemCondition}>{item.quantity} • {item.isVegetarian ? 'Veg' : 'Non-Veg'}</Text> */}
       </View>
     </TouchableOpacity>
   );
