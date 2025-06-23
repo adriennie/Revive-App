@@ -70,13 +70,16 @@ export default function GetStarted() {
         </View>
 
         <View style={styles.tabItem}>
+        <TouchableOpacity onPress={() => router.push('/Explore')}>
           <Ionicons name="search" size={22} color="#000" />
+          </TouchableOpacity>
+
           <Text style={styles.tabText}>Explore</Text>
         </View>
 
         <View style={styles.addButtonWrapper}>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="add" size={24} color="#fff" />
+          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/Add')}>
+            <Ionicons name="add" size={24} color="#fff"/>
           </TouchableOpacity>
           <Text style={styles.tabText}>Add</Text>
         </View>
