@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ImageBackground, Dimensions } from 'react-native';
+import { View, StyleSheet, ImageBackground, Dimensions, Platform } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 
@@ -26,22 +26,28 @@ export default function LandingPage() {
         <Text style={styles.logo}>🧡</Text>
         <Text style={styles.title}>Re:Vive</Text>
         <Text style={styles.tagline}>Where shared goods find new life</Text>
-        <View style={styles.featureRow}>
-          {features.map(f => (
-            <Card key={f.title} style={styles.featureCard} elevation={4}>
-              <Card.Content style={{ alignItems: 'center' }}>
-                <Text style={styles.featureIcon}>{f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}</Text>
-                <Text style={styles.featureTitle}>{f.title}</Text>
-                <Text style={styles.featureDesc}>{f.desc}</Text>
-              </Card.Content>
-            </Card>
+
+        <View style={styles.grid}>
+          {features.map((f, index) => (
+            <View key={f.title} style={[styles.cardWrapper, index % 2 !== 0 && { marginLeft: 10 }]}>
+              <Card style={styles.featureCard} elevation={3}>
+                <Card.Content style={{ alignItems: 'center' }}>
+                  <Text style={styles.featureIcon}>
+                    {f.icon === 'gift' ? '🎁' : f.icon === 'account-group' ? '👥' : f.icon === 'recycle' ? '♻️' : '🔄'}
+                  </Text>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureDesc}>{f.desc}</Text>
+                </Card.Content>
+              </Card>
+            </View>
           ))}
         </View>
+
         <Button
           mode="contained"
           style={styles.cta}
           labelStyle={{ fontSize: 18, fontWeight: 'bold' }}
-          onPress={() => router.push('/GetStarted')}
+          onPress={() => router.push('/(auth)/login')}
           contentStyle={{ paddingVertical: 8 }}
         >
           Get Started
@@ -63,7 +69,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
   },
   logo: { fontSize: 64, marginBottom: 8 },
   title: {
@@ -79,22 +85,35 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
-  featureRow: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginBottom: 32,
-    gap: 12,
+    marginBottom: 16,
+  },
+  cardWrapper: {
+    width: (width - 60) / 2, // spacing-safe for 2 cards per row
+    marginBottom: 12,
   },
   featureCard: {
-    width: width / 2.3,
-    margin: 6,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.95)',
+    height: 150,
+    justifyContent: 'center',
   },
   featureIcon: { fontSize: 32, marginBottom: 6 },
-  featureTitle: { fontWeight: 'bold', fontSize: 16, color: '#fb923c', marginBottom: 2 },
-  featureDesc: { fontSize: 13, color: '#374151', textAlign: 'center' },
+  featureTitle: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#fb923c',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  featureDesc: {
+    fontSize: 13,
+    color: '#374151',
+    textAlign: 'center',
+  },
   cta: {
     width: '90%',
     borderRadius: 30,
