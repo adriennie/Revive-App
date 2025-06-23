@@ -1,5 +1,5 @@
 // File: app/FreeFood.tsx
-import React, { useState, FC } from 'react';
+import React, { useState, FC, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -32,58 +33,38 @@ interface Item {
   isPopular: boolean;
 }
 
-const dummyFreeItems: Item[] = [
-  {
-    id: '1',
-    name: 'Homemade Veg Biryani',
-    imageUrl: 'https://images.unsplash.com/photo-1613145993316-b0c3b5e81e6c?auto=format&fit=crop&w=400&q=80',
-    description: 'Freshly cooked veg biryani, enough for 4 servings.',
-    category: 'Cooked Meals',
-    expiryDate: '2025-06-23',
-    location: 'Lucknow',
-    quantity: '4 servings',
-    isVegetarian: true,
-    isAvailable: true,
-    isPopular: true,
-  },
-  {
-    id: '2',
-    name: 'Packaged Biscuits',
-    imageUrl: 'https://images.unsplash.com/photo-1616594037275-d9edc428e6dc?auto=format&fit=crop&w=400&q=80',
-    description: '10 sealed packs of glucose biscuits.',
-    category: 'Snacks',
-    expiryDate: '2025-09-30',
-    location: 'Delhi',
-    quantity: '10 packs',
-    isVegetarian: true,
-    isAvailable: true,
-    isPopular: false,
-  },
-  {
-    id: '3',
-    name: 'Leftover Non-Veg Curry',
-    imageUrl: 'https://images.unsplash.com/photo-1668598161389-706759a5eb23?auto=format&fit=crop&w=400&q=80',
-    description: 'Homemade chicken curry, good for 2 servings.',
-    category: 'Cooked Meals',
-    expiryDate: '2025-06-22',
-    location: 'Lucknow',
-    quantity: '2 servings',
-    isVegetarian: false,
-    isAvailable: true,
-    isPopular: false,
-  },
-];
-
 const FreeFood: FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPopular, setShowPopular] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
   const router = useRouter();
+  const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
+  const [loading, setLoading] = useState(true);
 
-  const categories = ['All', 'Cooked Meals', 'Snacks', 'Fruits', 'Grocery Pack', 'Beverages', 'Veg', 'Non-Veg'];
+  // Fetch data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('itemdata')
+        .select('*')
+        .eq('type', 'food');
+      if (error) {
+        console.error('Error fetching data:', error);
+        setLoading(false);
+        return;
+      }
+      setItems(data || []);
+      const uniqueCategories = Array.from(new Set((data || []).map(item => item.category).filter(Boolean)));
+      setCategories(['All', ...uniqueCategories]);
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
-  const filteredItems = dummyFreeItems.filter(item => {
+  const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           item.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesPopular = !showPopular || item.isPopular;
@@ -146,7 +127,7 @@ const FreeFood: FC = () => {
               ))}
             </View>
 
-            <View style={styles.toggleRow}>
+            {/* <View style={styles.toggleRow}>
               <Text style={styles.filterLabel}>Popular Only</Text>
               <Switch
                 onValueChange={setShowPopular}
@@ -154,7 +135,7 @@ const FreeFood: FC = () => {
                 trackColor={{ false: '#767577', true: '#FFB300' }}
                 thumbColor={'#f4f3f4'}
               />
-            </View>
+            </View> */}
           </>
         )}
       </View>

@@ -1,5 +1,5 @@
 // File: app/FreeNonFood.tsx
-import React, { useState, FC } from 'react';
+import React, { useState, FC, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -22,7 +23,7 @@ const CARD_WIDTH = (width - 48) / 2;
 interface Item {
   id: string;
   name: string;
-  imageUrl: string;
+  image_url: string;
   description: string;
   category: string;
   condition: string;
@@ -30,46 +31,42 @@ interface Item {
   isPopular: boolean;
 }
 
-const dummyFreeItems: Item[] = [
-  {
-    id: '1',
-    name: 'Old Curtains',
-    imageUrl: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?auto=format&fit=crop&w=400&q=80',
-    description: 'Two large cotton curtains, still in good condition.',
-    category: 'Home Essentials',
-    condition: 'Used - Good',
-    location: 'Lucknow',
-    isPopular: true,
-  },
-  {
-    id: '2',
-    name: 'Plastic Storage Box',
-    imageUrl: 'https://images.unsplash.com/photo-1616627458105-1ea72a4ae9d5?auto=format&fit=crop&w=400&q=80',
-    description: 'Large plastic box for storage, no lid.',
-    category: 'Cleaning Supplies',
-    condition: 'Used - Fair',
-    location: 'Lucknow',
-    isPopular: false,
-  },
-];
-
 const FreeNonFood: FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  // const [selectedCondition, setSelectedCondition] = useState('All');
   const [showPopular, setShowPopular] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const router = useRouter();
+  const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
+  const [loading, setLoading] = useState(true);
 
-  const categories = ['All', 'Home Essentials', 'Cleaning Supplies', 'Furniture', 'Clothing', 'Electronics'];
+  // Fetch data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('itemdata')
+        .select('*')
+        .eq('type', 'sale');
+      if (error) {
+        console.error('Error fetching data:', error);
+        setLoading(false);
+        return;
+      }
+      setItems(data || []);
+      const uniqueCategories = Array.from(new Set((data || []).map(item => item.category).filter(Boolean)));
+      setCategories(['All', ...uniqueCategories]);
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
-  const filteredItems = dummyFreeItems.filter(item => {
+  const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           item.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
-    // const matchesCondition = selectedCondition === 'All' || item.condition === selectedCondition;
     const matchesPopular = !showPopular || item.isPopular;
-
     return matchesSearch && matchesCategory && matchesPopular;
   });
 
@@ -78,7 +75,7 @@ const FreeNonFood: FC = () => {
       style={styles.card}
       onPress={() => router.push({ pathname: '/ProductScreen', params: { id: item.id } })}
     >
-      <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
+      <Image source={{ uri: item.image_url }} style={styles.cardImage} />
       <View style={styles.cardContent}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemCondition}>{item.condition}</Text>
