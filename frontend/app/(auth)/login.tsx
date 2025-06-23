@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, ImageBackground } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
-import { useOAuth } from '@clerk/clerk-expo';
+import { useOAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 
 export default function Login() {
   const router = useRouter();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const { isLoaded, isSignedIn } = useUser();
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace('/GetStarted');
+    }
+  }, [isLoaded, isSignedIn]);
+
+  if (!isLoaded || isSignedIn) return null;
 
   const handleSignInWithGoogle = async () => {
     try {
@@ -16,13 +26,21 @@ export default function Login() {
         router.replace('/GetStarted');
       }
     } catch (err) {
-      console.error('OAuth error', err);
+      if (err instanceof Error) {
+        console.error('OAuth error:', err.message);
+        alert(`Login failed: ${err.message}`);
+      } else {
+        console.error('OAuth error:', err);
+        alert('Login failed. Please try again.');
+      }
     }
   };
 
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80' }}
+      source={{
+        uri: 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80',
+      }}
       style={styles.bg}
       blurRadius={2}
     >
