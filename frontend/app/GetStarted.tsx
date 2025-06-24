@@ -85,7 +85,7 @@ export default function GetStarted() {
         </View>
 
         <View style={styles.tabItem}>
-          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Community')}>
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/CreditEconomy')}>
           <Ionicons name="chatbubble-outline" size={22} color="#000" />
           <Text style={styles.tabText}>Community</Text>
           </TouchableOpacity>
