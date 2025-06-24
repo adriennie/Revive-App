@@ -17,24 +17,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
-import { useUser } from '@clerk/clerk-expo';
-
-interface ItemData {
-  name: string;
-  price: number;
-  description: string;
-  category: string;
-  condition: string;
-  location: string;
-  type: string;
-  image_url: string;
-  age_minutes: number | null;
-  clerk_user_id?: string;
-  user_id?: string;
-}
 
 export default function AddItemScreen() {
-  const { user } = useUser();
   const [isFood, setIsFood] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -93,50 +77,41 @@ export default function AddItemScreen() {
 
     try {
       if (imageUrl) {
-        console.log('Starting image upload process...');
-        const fileExt = imageUrl.split('.').pop()?.toLowerCase() === 'png' ? 'png' : 'jpg';
-        const fileName = `item_${Date.now()}.${fileExt}`;
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
 
-        console.log('Reading image file...');
-        // Get the image file data as a binary array
-        const fileInfo = await FileSystem.getInfoAsync(imageUrl);
-        if (!fileInfo.exists) {
-          throw new Error('File does not exist');
-        }
+        const fileExt = blob.type === 'image/png' ? 'png' : 'jpg';
+        const fileName = `${Date.now()}.${fileExt}`;
+        const newPath = FileSystem.documentDirectory + fileName;
 
-        console.log('Uploading to Supabase storage...');
-        // Create form data for the file
+        await FileSystem.copyAsync({ from: imageUrl, to: newPath });
+
+        const uploadUrl = `https://bzqqeativrabfbcqlzzl.supabase.co/storage/v1/object/item-images/${fileName}`;
         const formData = new FormData();
         formData.append('file', {
-          uri: imageUrl,
-          type: `image/${fileExt}`,
-          name: fileName
+          uri: newPath,
+          name: fileName,
+          type: blob.type,
         } as any);
 
-        // Upload using Supabase storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('item-images')
-          .upload(fileName, formData, {
-            contentType: `image/${fileExt}`,
-            upsert: true
-          });
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer YOUR_SUPABASE_ANON_KEY`,
+            'apikey': 'YOUR_SUPABASE_ANON_KEY',
+          },
+          body: formData,
+        });
 
-        if (uploadError) {
-          console.error('Upload error details:', uploadError);
-          throw new Error(`Upload failed: ${uploadError.message}`);
+        if (!uploadResponse.ok) {
+          throw new Error('Image upload failed');
         }
 
-        console.log('Upload successful, getting public URL...');
-        // Get the public URL
-        const { data: urlData } = supabase.storage
-          .from('item-images')
-          .getPublicUrl(fileName);
-
-        publicImageUrl = urlData.publicUrl;
-        console.log('Public URL obtained:', publicImageUrl);
+        const { data } = supabase.storage.from('item-images').getPublicUrl(fileName);
+        publicImageUrl = data.publicUrl;
       }
 
-      const itemData: ItemData = {
+      const itemData = {
         name,
         price: parseFloat(price),
         description,
@@ -146,21 +121,7 @@ export default function AddItemScreen() {
         type: isFood ? 'food' : 'sale',
         image_url: publicImageUrl,
         age_minutes: isFood ? parseInt(age, 10) || null : null,
-        clerk_user_id: user?.id,
       };
-
-      // Get user's Supabase ID if available
-      if (user?.id) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('clerk_user_id', user.id)
-          .single();
-
-        if (!userError && userData) {
-          itemData.user_id = userData.id;
-        }
-      }
 
       const { error } = await supabase.from('itemdata').insert([itemData]);
 
@@ -174,7 +135,7 @@ export default function AddItemScreen() {
       Alert.alert('Success!', 'Item has been added successfully.');
       router.replace('/GetStarted');
     } catch (err) {
-      Alert.alert('Upload Error', err instanceof Error ? err.message : 'Something went wrong.');
+      Alert.alert('Upload Error', 'Something went wrong.');
       console.error(err);
     } finally {
       setLoading(false);

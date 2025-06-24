@@ -3,43 +3,18 @@ import { View, StyleSheet, ImageBackground } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
 import { useOAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const router = useRouter();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
-  const { isLoaded, isSignedIn, user } = useUser();
-
-  // Upsert Clerk user details into Supabase
-  const upsertUserToSupabase = async (user: any) => {
-    if (!user) return;
-    const { id, firstName, lastName, emailAddresses, imageUrl, phoneNumbers } = user;
-    const email = emailAddresses?.[0]?.emailAddress || '';
-    const phone_number = phoneNumbers?.[0]?.phoneNumber || '';
-    const name = [firstName, lastName].filter(Boolean).join(' ');
-    const photo_url = imageUrl || '';
-    const { error } = await supabase.from('users').upsert([
-      {
-        clerk_user_id: id,
-        name,
-        email,
-        photo_url,
-        phone_number,
-      },
-    ], { onConflict: 'clerk_user_id' });
-    if (error) {
-      console.error('Supabase user upsert error:', error);
-    }
-  };
+  const { isLoaded, isSignedIn } = useUser();
 
   // Redirect if already signed in
   useEffect(() => {
-    if (isLoaded && isSignedIn && user) {
-      upsertUserToSupabase(user).then(() => {
-        router.replace('/GetStarted');
-      });
+    if (isLoaded && isSignedIn) {
+      router.replace('/GetStarted');
     }
-  }, [isLoaded, isSignedIn, user]);
+  }, [isLoaded, isSignedIn]);
 
   if (!isLoaded || isSignedIn) return null;
 
@@ -48,7 +23,7 @@ export default function Login() {
       const { createdSessionId, setActive } = await startOAuthFlow();
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
-        // user will be available in useEffect, so no need to upsert here
+        router.replace('/GetStarted');
       }
     } catch (err) {
       if (err instanceof Error) {
