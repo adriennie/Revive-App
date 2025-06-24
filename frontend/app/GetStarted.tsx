@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
+import Sidebar from '@/components/Sidebar';
 
 const categories = [
   { title: 'Free food', route: '/FreeFood' },
@@ -22,6 +23,7 @@ export default function GetStarted() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const location = 'XYZ';
+  const [isSidebarVisible, setSidebarVisible] = useState(false);
 
   if (!isLoaded) return null;
 
@@ -34,8 +36,12 @@ export default function GetStarted() {
         <View style={styles.headerRow}>
           <Text style={styles.greeting}>Good afternoon, {userName}</Text>
           <View style={styles.headerIcons}>
-            <Ionicons name="notifications-outline" size={22} color="#000" style={styles.iconGap} />
-            <Entypo name="menu" size={22} color="#000" />
+            <TouchableOpacity>
+              <Ionicons name="notifications-outline" size={22} color="#000" style={styles.iconGap} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSidebarVisible(true)}>
+              <Entypo name="menu" size={22} color="#000" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -70,10 +76,11 @@ export default function GetStarted() {
         </View>
 
         <View style={styles.tabItem}>
-        <TouchableOpacity onPress={() => router.push('/Explore')}>
-          <Ionicons name="search" size={22} color="#000" />
-          </TouchableOpacity>
-
+          <Link href="/Explore" asChild>
+            <TouchableOpacity>
+              <Ionicons name="search" size={22} color="#000" />
+            </TouchableOpacity>
+          </Link>
           <Text style={styles.tabText}>Explore</Text>
         </View>
 
@@ -94,6 +101,7 @@ export default function GetStarted() {
           <Text style={styles.tabText}>Messages</Text>
         </View>
       </View>
+      <Sidebar isVisible={isSidebarVisible} onClose={() => setSidebarVisible(false)} />
     </SafeAreaView>
   );
 }

@@ -75,7 +75,12 @@ const FreeNonFood: FC = () => {
       style={styles.card}
       onPress={() => router.push({ pathname: '/ProductScreen', params: { id: item.id } })}
     >
-      <Image source={{ uri: item.image_url }} style={styles.cardImage} />
+      <Image 
+        source={{ 
+          uri: item.image_url || 'https://via.placeholder.com/300x300.png?text=No+Image'
+        }} 
+        style={styles.cardImage}
+      />
       <View style={styles.cardContent}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemCondition}>{item.condition}</Text>
