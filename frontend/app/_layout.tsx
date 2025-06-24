@@ -30,6 +30,10 @@ export default function RootLayout() {
           <Stack.Screen name="Add" options={{ title: 'Add Item' }} />
           <Stack.Screen name="Message" options={{ title: 'Messages' }} />
           <Stack.Screen name="Community" options={{ title: 'Community' }} />
+          <Stack.Screen name="Chat" options={{ title: 'Chat' }} />
+            
+          {/* Main App Tabs */}
+          {/* <Stack.Screen name="(tabs)" /> */}
 
           {/* Item Details Screen - Used by ForSaleScreen, FreeFoodScreen, etc. */}
           <Stack.Screen name="ProductScreen" options={{ title: 'Product Details' }} />
