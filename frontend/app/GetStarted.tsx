@@ -85,13 +85,17 @@ export default function GetStarted() {
         </View>
 
         <View style={styles.tabItem}>
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Community')}>
           <Ionicons name="chatbubble-outline" size={22} color="#000" />
           <Text style={styles.tabText}>Community</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.tabItem}>
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Message')}>
           <MaterialIcons name="email" size={22} color="#000" />
           <Text style={styles.tabText}>Messages</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
