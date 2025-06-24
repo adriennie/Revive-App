@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useUser } from '@clerk/clerk-expo';
 
-const BACKEND_URL = 'http://localhost:3000';
+const BACKEND_URL = 'https://34.131.96.88:3000';
 
 export default function CreditEconomy() {
   const { user, isLoaded } = useUser();

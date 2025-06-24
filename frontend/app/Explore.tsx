@@ -61,14 +61,14 @@ export default function ExploreScreen() {
     <TouchableOpacity style={styles.card}>
       <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
       <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.title}</Text> {/* Corrected: <Text> */}
+        <Text style={styles.cardTitle}>{item.title}</Text>
         <View style={styles.pointsContainer}>
           <Ionicons name="leaf" size={18} color="#FF9800" />
-          <Text style={styles.pointsValue}>{item.pointsRequired}</Text> {/* Corrected: <Text> */}
-          <Text style={styles.pointsLabel}>Points</Text> {/* Corrected: <Text> */}
+          <Text style={styles.pointsValue}>{item.pointsRequired}</Text>
+          <Text style={styles.pointsLabel}>Points</Text>
         </View>
         <TouchableOpacity style={styles.redeemButton}>
-          <Text style={styles.redeemButtonText}>Redeem Now</Text> {/* Corrected: <Text> */}
+          <Text style={styles.redeemButtonText}>Redeem Now</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -76,7 +76,7 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.screenTitle}>Discover Rewards</Text> {/* Corrected: <Text> */}
+      <Text style={styles.screenTitle}>Discover Rewards</Text>
       <FlatList
         data={redeemableItems}
         renderItem={renderItem}
