@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
+import { decode } from 'base64-arraybuffer';
 
 export default function AddItemScreen() {
   const [isFood, setIsFood] = useState(false);
@@ -77,38 +78,38 @@ export default function AddItemScreen() {
 
     try {
       if (imageUrl) {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-
-        const fileExt = blob.type === 'image/png' ? 'png' : 'jpg';
+        console.log('Starting image upload process...');
+        const base64 = await FileSystem.readAsStringAsync(imageUrl, { encoding: FileSystem.EncodingType.Base64 });
+        const fileExt = 'jpg'; // or 'png'
         const fileName = `${Date.now()}.${fileExt}`;
-        const newPath = FileSystem.documentDirectory + fileName;
+        const filePath = fileName;
+        console.log('Uploading to Supabase Storage:', filePath);
 
-        await FileSystem.copyAsync({ from: imageUrl, to: newPath });
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('item-images')
+          .upload(filePath, decode(base64), {
+            contentType: 'image/jpeg', // or 'image/png'
+            upsert: true,
+          });
 
-        const uploadUrl = `https://bzqqeativrabfbcqlzzl.supabase.co/storage/v1/object/item-images/${fileName}`;
-        const formData = new FormData();
-        formData.append('file', {
-          uri: newPath,
-          name: fileName,
-          type: blob.type,
-        } as any);
-
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer YOUR_SUPABASE_ANON_KEY`,
-            'apikey': 'YOUR_SUPABASE_ANON_KEY',
-          },
-          body: formData,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Image upload failed');
+        if (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          throw new Error('Image upload failed: ' + uploadError.message);
         }
+        console.log('Image uploaded successfully:', uploadData);
 
-        const { data } = supabase.storage.from('item-images').getPublicUrl(fileName);
-        publicImageUrl = data.publicUrl;
+        // Get the public URL
+        const { data: publicUrlData } = supabase
+          .storage
+          .from('item-images')
+          .getPublicUrl(filePath);
+        if (!publicUrlData || !publicUrlData.publicUrl) {
+          console.error('Failed to get public URL for uploaded image.');
+        } else {
+          console.log('Public image URL:', publicUrlData.publicUrl);
+        }
+        publicImageUrl = publicUrlData?.publicUrl;
       }
 
       const itemData = {
@@ -122,12 +123,13 @@ export default function AddItemScreen() {
         image_url: publicImageUrl,
         age_minutes: isFood ? parseInt(age, 10) || null : null,
       };
+      console.log('Inserting item data into Supabase:', itemData);
 
       const { error } = await supabase.from('itemdata').insert([itemData]);
 
       if (error) {
         Alert.alert('Error', 'Failed to save item.');
-        console.log(error);
+        console.error('Supabase insert error:', error);
         setLoading(false);
         return;
       }
@@ -136,7 +138,7 @@ export default function AddItemScreen() {
       router.replace('/GetStarted');
     } catch (err) {
       Alert.alert('Upload Error', 'Something went wrong.');
-      console.error(err);
+      console.error('Error in handleSubmit:', err);
     } finally {
       setLoading(false);
     }
