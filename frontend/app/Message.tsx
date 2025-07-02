@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
+import { useUser } from '@clerk/clerk-expo';
 
 const { width } = Dimensions.get('window');
 
 interface Message {
   id: string;
   text: string;
-  sender: 'me' | 'them';
-  timestamp: string;
+  sender_id: string;
+  receiver_id: string;
+  chat_id: string;
+  created_at: string;
 }
 
 interface ChatData {
@@ -28,35 +32,38 @@ interface ChatData {
   itemName: string;
   itemImageUrl: string;
   location: string;
-  messages: Message[];
+  chatId: string;
+  receiverId: string;
 }
 
 const dummyChats: Record<string, ChatData> = {
-  chat1: {
+  chat123: {
     sellerName: 'Ravi from Hazratganj',
     itemName: 'Leftover Biryani',
     itemImageUrl: 'https://images.unsplash.com/photo-1617196038437-83cc9c0dbd8e?auto=format&fit=crop&w=400&q=80',
     location: 'Lucknow - Hazratganj',
-    messages: [
-      { id: '1', text: 'Hey! Is this still available?', sender: 'me', timestamp: '10:00 AM' },
-      { id: '2', text: 'Yes, pick up anytime.', sender: 'them', timestamp: '10:02 AM' },
-    ],
+    chatId: 'chat123',
+    receiverId: 'ravi123',
   },
-  chat2: {
+  chat125: {
     sellerName: 'Priya from Noida',
     itemName: 'Dell Charger',
     itemImageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=400&q=80',
     location: 'Noida',
-    messages: [
-      { id: '1', text: 'Is it compatible with XPS?', sender: 'me', timestamp: '9:00 AM' },
-      { id: '2', text: 'Yes, it works.', sender: 'them', timestamp: '9:05 AM' },
-    ],
+    chatId: 'chat125',
+    receiverId: 'priya456',
   },
 };
 
+// 🟡 Replace with your local IP for real device
+const BACKEND_URL = 'http://192.168.29.47:3001';
+
 export default function ChatsScreen() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useUser();
 
   const chatKeys = Object.keys(dummyChats);
   const filteredChatKeys = chatKeys.filter(chatId => {
@@ -69,18 +76,73 @@ export default function ChatsScreen() {
 
   const selectedChat = selectedChatId ? dummyChats[selectedChatId] : null;
 
+  const fetchMessages = async (chatId: string) => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/messages/${chatId}`);
+      setChatMessages(response.data.messages);
+    } catch (error) {
+      console.error('❌ Fetch error:', error);
+    }
+  };
+
+  const handleOpenChat = (chatId: string) => {
+    setSelectedChatId(chatId);
+    fetchMessages(chatId);
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedChat || !user) {
+      console.warn('🚫 Missing data', { newMessage, selectedChat, user });
+      return;
+    }
+
+    const payload = {
+      sender_id: user.username || user.id,
+      receiver_id: selectedChat.receiverId,
+      chat_id: selectedChat.chatId,
+      text: newMessage.trim(),
+    };
+
+    try {
+      console.log('➡️ Sending to backend:', payload);
+      const response = await axios.post(`${BACKEND_URL}/send-message`, payload);
+      console.log('✅ Sent. Server response:', response.data);
+
+      setNewMessage('');
+
+      // Wait a bit for Supabase to reflect the new message
+      setTimeout(() => {
+        fetchMessages(selectedChat.chatId);
+      }, 500);
+    } catch (err: any) {
+      console.error('❌ Axios error:', err?.response?.data || err.message);
+      alert('Message send failed.');
+    }
+  };
+
+  // 🔁 Auto-fetch messages every 3 seconds
+  useEffect(() => {
+    if (!selectedChatId) return;
+
+    fetchMessages(selectedChatId);
+
+    const interval = setInterval(() => {
+      fetchMessages(selectedChatId);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [selectedChatId]);
+
   const renderChatPreview = (chatId: string) => {
     const chat = dummyChats[chatId];
-    const lastMessage = chat.messages[chat.messages.length - 1];
     return (
-      <TouchableOpacity style={styles.card} onPress={() => setSelectedChatId(chatId)} key={chatId}>
+      <TouchableOpacity style={styles.card} onPress={() => handleOpenChat(chatId)} key={chatId}>
         <Image source={{ uri: chat.itemImageUrl }} style={styles.itemImage} />
         <View style={styles.chatContent}>
           <Text style={styles.itemName}>{chat.itemName}</Text>
           <Text style={styles.sellerName}>{chat.sellerName}</Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>{lastMessage?.text}</Text>
+          <Text style={styles.lastMessage} numberOfLines={1}>Tap to view</Text>
           <View style={styles.chatFooter}>
-            <Text style={styles.chatTime}>{lastMessage?.timestamp}</Text>
             <Text style={styles.chatLocation}>{chat.location}</Text>
           </View>
         </View>
@@ -101,12 +163,15 @@ export default function ChatsScreen() {
       </View>
 
       <FlatList
-        data={selectedChat?.messages}
+        data={chatMessages}
         keyExtractor={(msg) => msg.id}
         renderItem={({ item }) => (
-          <View style={[styles.messageBubble, item.sender === 'me' ? styles.myMessage : styles.theirMessage]}>
+          <View style={[
+            styles.messageBubble,
+            item.sender_id === (user?.username || user?.id) ? styles.myMessage : styles.theirMessage,
+          ]}>
             <Text style={styles.messageText}>{item.text}</Text>
-            <Text style={styles.timestamp}>{item.timestamp}</Text>
+            <Text style={styles.timestamp}>{new Date(item.created_at).toLocaleTimeString()}</Text>
           </View>
         )}
         contentContainerStyle={styles.messagesContainer}
@@ -117,8 +182,13 @@ export default function ChatsScreen() {
         keyboardVerticalOffset={90}
         style={styles.inputContainer}
       >
-        <TextInput placeholder="Type a message..." style={styles.textInput} />
-        <TouchableOpacity style={styles.sendButton}>
+        <TextInput
+          placeholder="Type a message..."
+          style={styles.textInput}
+          value={newMessage}
+          onChangeText={setNewMessage}
+        />
+        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
           <Ionicons name="send" size={22} color="#fff" />
         </TouchableOpacity>
       </KeyboardAvoidingView>
@@ -231,10 +301,6 @@ const styles = StyleSheet.create({
   chatFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  chatTime: {
-    fontSize: 12,
-    color: '#999999',
   },
   chatLocation: {
     fontSize: 12,
