@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,7 +41,8 @@ const dummyChats: Record<string, ChatData> = {
   chat123: {
     sellerName: 'Ravi from Hazratganj',
     itemName: 'Leftover Biryani',
-    itemImageUrl: 'https://images.unsplash.com/photo-1617196038437-83cc9c0dbd8e?auto=format&fit=crop&w=400&q=80',
+    itemImageUrl:
+      'https://images.unsplash.com/photo-1617196038437-83cc9c0dbd8e?auto=format&fit=crop&w=400&q=80',
     location: 'Lucknow - Hazratganj',
     chatId: 'chat123',
     receiverId: 'ravi123',
@@ -48,14 +50,14 @@ const dummyChats: Record<string, ChatData> = {
   chat125: {
     sellerName: 'Priya from Noida',
     itemName: 'Dell Charger',
-    itemImageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=400&q=80',
+    itemImageUrl:
+      'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=400&q=80',
     location: 'Noida',
     chatId: 'chat125',
     receiverId: 'priya456',
   },
 };
 
-// 🟡 Replace with your local IP for real device
 const BACKEND_URL = 'http://192.168.29.47:3001';
 
 export default function ChatsScreen() {
@@ -65,8 +67,10 @@ export default function ChatsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useUser();
 
+  const flatListRef = useRef<FlatList>(null);
+
   const chatKeys = Object.keys(dummyChats);
-  const filteredChatKeys = chatKeys.filter(chatId => {
+  const filteredChatKeys = chatKeys.filter((chatId) => {
     const chat = dummyChats[chatId];
     return (
       chat.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -91,10 +95,7 @@ export default function ChatsScreen() {
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat || !user) {
-      console.warn('🚫 Missing data', { newMessage, selectedChat, user });
-      return;
-    }
+    if (!newMessage.trim() || !selectedChat || !user) return;
 
     const payload = {
       sender_id: user.username || user.id,
@@ -104,34 +105,64 @@ export default function ChatsScreen() {
     };
 
     try {
-      console.log('➡️ Sending to backend:', payload);
-      const response = await axios.post(`${BACKEND_URL}/send-message`, payload);
-      console.log('✅ Sent. Server response:', response.data);
-
+      await axios.post(`${BACKEND_URL}/send-message`, payload);
       setNewMessage('');
-
-      // Wait a bit for Supabase to reflect the new message
       setTimeout(() => {
         fetchMessages(selectedChat.chatId);
       }, 500);
     } catch (err: any) {
-      console.error('❌ Axios error:', err?.response?.data || err.message);
-      alert('Message send failed.');
+      console.error('❌ Send failed:', err?.response?.data || err.message);
     }
   };
 
-  // 🔁 Auto-fetch messages every 3 seconds
+  // Auto-scroll to bottom when messages update
+  useEffect(() => {
+    if (flatListRef.current && chatMessages.length > 0) {
+      flatListRef.current.scrollToEnd({ animated: true });
+    }
+  }, [chatMessages]);
+
+  // Refresh every 3 seconds
   useEffect(() => {
     if (!selectedChatId) return;
-
     fetchMessages(selectedChatId);
-
-    const interval = setInterval(() => {
-      fetchMessages(selectedChatId);
-    }, 3000);
-
+    const interval = setInterval(() => fetchMessages(selectedChatId), 3000);
     return () => clearInterval(interval);
   }, [selectedChatId]);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    if (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    ) {
+      return 'Today';
+    } else if (
+      date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear()
+    ) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const groupedMessages: { title: string; data: Message[] }[] = [];
+  chatMessages.forEach((msg) => {
+    const dateKey = formatDate(msg.created_at);
+    const group = groupedMessages.find((g) => g.title === dateKey);
+    if (group) {
+      group.data.push(msg);
+    } else {
+      groupedMessages.push({ title: dateKey, data: [msg] });
+    }
+  });
 
   const renderChatPreview = (chatId: string) => {
     const chat = dummyChats[chatId];
@@ -141,7 +172,9 @@ export default function ChatsScreen() {
         <View style={styles.chatContent}>
           <Text style={styles.itemName}>{chat.itemName}</Text>
           <Text style={styles.sellerName}>{chat.sellerName}</Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>Tap to view</Text>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            Tap to view
+          </Text>
           <View style={styles.chatFooter}>
             <Text style={styles.chatLocation}>{chat.location}</Text>
           </View>
@@ -163,15 +196,28 @@ export default function ChatsScreen() {
       </View>
 
       <FlatList
-        data={chatMessages}
-        keyExtractor={(msg) => msg.id}
+        ref={flatListRef}
+        data={groupedMessages}
+        keyExtractor={(item, index) => item.title + index}
         renderItem={({ item }) => (
-          <View style={[
-            styles.messageBubble,
-            item.sender_id === (user?.username || user?.id) ? styles.myMessage : styles.theirMessage,
-          ]}>
-            <Text style={styles.messageText}>{item.text}</Text>
-            <Text style={styles.timestamp}>{new Date(item.created_at).toLocaleTimeString()}</Text>
+          <View>
+            <Text style={styles.dateHeader}>{item.title}</Text>
+            {item.data.map((msg) => (
+              <View
+                key={msg.id}
+                style={[
+                  styles.messageBubble,
+                  msg.sender_id === (user?.username || user?.id)
+                    ? styles.myMessage
+                    : styles.theirMessage,
+                ]}
+              >
+                <Text style={styles.messageText}>{msg.text}</Text>
+                <Text style={styles.timestamp}>
+                  {new Date(msg.created_at).toLocaleTimeString()}
+                </Text>
+              </View>
+            ))}
           </View>
         )}
         contentContainerStyle={styles.messagesContainer}
@@ -258,10 +304,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     fontSize: 16,
   },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-  },
+  listContainer: { paddingHorizontal: 16, paddingTop: 10 },
   card: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -274,48 +317,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
   },
-  itemImage: {
-    width: 100,
-    height: 100,
-    resizeMode: 'cover',
-  },
-  chatContent: {
-    flex: 1,
-    padding: 10,
-    justifyContent: 'space-between',
-  },
-  itemName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333333',
-  },
-  sellerName: {
-    fontSize: 13,
-    color: '#666666',
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#555555',
-    marginVertical: 4,
-  },
-  chatFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  chatLocation: {
+  itemImage: { width: 100, height: 100, resizeMode: 'cover' },
+  chatContent: { flex: 1, padding: 10, justifyContent: 'space-between' },
+  itemName: { fontSize: 16, fontWeight: 'bold', color: '#333333' },
+  sellerName: { fontSize: 13, color: '#666666' },
+  lastMessage: { fontSize: 14, color: '#555555', marginVertical: 4 },
+  chatFooter: { flexDirection: 'row', justifyContent: 'space-between' },
+  chatLocation: { fontSize: 12, color: '#999999' },
+  emptyListContainer: { padding: 30, alignItems: 'center' },
+  emptyListText: { fontSize: 16, color: '#777777' },
+  messagesContainer: { padding: 16 },
+  dateHeader: {
+    textAlign: 'center',
+    color: '#888',
     fontSize: 12,
-    color: '#999999',
-  },
-  emptyListContainer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  emptyListText: {
-    fontSize: 16,
-    color: '#777777',
-  },
-  messagesContainer: {
-    padding: 16,
+    marginTop: 10,
+    marginBottom: 5,
   },
   messageBubble: {
     padding: 10,
@@ -331,10 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     alignSelf: 'flex-start',
   },
-  messageText: {
-    fontSize: 15,
-    color: '#333',
-  },
+  messageText: { fontSize: 15, color: '#333' },
   timestamp: {
     fontSize: 10,
     color: '#666',
