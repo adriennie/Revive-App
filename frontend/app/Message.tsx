@@ -1,380 +1,239 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
-  TouchableOpacity,
-  Image,
-  Dimensions,
   TextInput,
-  Platform,
+  TouchableOpacity,
+  StyleSheet,
   KeyboardAvoidingView,
-  ScrollView,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
 import { useUser } from '@clerk/clerk-expo';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import axios from 'axios';
+import moment from 'moment'; // ✅ Added
 
-const { width } = Dimensions.get('window');
-
-interface Message {
-  id: string;
-  text: string;
-  sender_id: string;
-  receiver_id: string;
-  chat_id: string;
-  created_at: string;
-}
-
-interface ChatData {
-  sellerName: string;
-  itemName: string;
-  itemImageUrl: string;
-  location: string;
-  chatId: string;
-  receiverId: string;
-}
-
-const dummyChats: Record<string, ChatData> = {
-  chat123: {
-    sellerName: 'Ravi from Hazratganj',
-    itemName: 'Leftover Biryani',
-    itemImageUrl:
-      'https://images.unsplash.com/photo-1617196038437-83cc9c0dbd8e?auto=format&fit=crop&w=400&q=80',
-    location: 'Lucknow - Hazratganj',
-    chatId: 'chat123',
-    receiverId: 'ravi123',
-  },
-  chat125: {
-    sellerName: 'Priya from Noida',
-    itemName: 'Dell Charger',
-    itemImageUrl:
-      'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=400&q=80',
-    location: 'Noida',
-    chatId: 'chat125',
-    receiverId: 'priya456',
-  },
-};
-
-const BACKEND_URL = 'http://192.168.29.47:3001';
-
-export default function ChatsScreen() {
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+export default function Message() {
   const { user } = useUser();
-
+  const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
 
-  const chatKeys = Object.keys(dummyChats);
-  const filteredChatKeys = chatKeys.filter((chatId) => {
-    const chat = dummyChats[chatId];
-    return (
-      chat.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.sellerName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
+  const { chat_id, receiver_id, sellerName } = useLocalSearchParams<{
+    chat_id: string;
+    receiver_id: string;
+    sellerName: string;
+    itemName: string;
+    itemImageUrl: string;
+  }>();
 
-  const selectedChat = selectedChatId ? dummyChats[selectedChatId] : null;
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState('');
 
-  const fetchMessages = async (chatId: string) => {
+  const fetchMessages = async () => {
     try {
-      const response = await axios.get(`${BACKEND_URL}/messages/${chatId}`);
-      setChatMessages(response.data.messages);
-    } catch (error) {
-      console.error('❌ Fetch error:', error);
+      const res = await axios.get(`http://192.168.29.47:3001/messages/${chat_id}`);
+      setMessages(res.data.messages);
+    } catch (err) {
+      console.error('Failed to fetch messages:', err);
     }
-  };
-
-  const handleOpenChat = (chatId: string) => {
-    setSelectedChatId(chatId);
-    fetchMessages(chatId);
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat || !user) return;
-
-    const payload = {
-      sender_id: user.username || user.id,
-      receiver_id: selectedChat.receiverId,
-      chat_id: selectedChat.chatId,
-      text: newMessage.trim(),
-    };
+    if (!text.trim()) return;
 
     try {
-      await axios.post(`${BACKEND_URL}/send-message`, payload);
-      setNewMessage('');
-      setTimeout(() => {
-        fetchMessages(selectedChat.chatId);
-      }, 500);
-    } catch (err: any) {
-      console.error('❌ Send failed:', err?.response?.data || err.message);
+      await axios.post('http://192.168.29.47:3001/send-message', {
+        chat_id,
+        sender_id: user?.id,
+        receiver_id,
+        text,
+      });
+      setText('');
+      fetchMessages();
+    } catch (err) {
+      console.error('Failed to send message:', err);
     }
   };
 
-  // Auto-scroll to bottom when messages update
   useEffect(() => {
-    if (flatListRef.current && chatMessages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: true });
-    }
-  }, [chatMessages]);
-
-  // Refresh every 3 seconds
-  useEffect(() => {
-    if (!selectedChatId) return;
-    fetchMessages(selectedChatId);
-    const interval = setInterval(() => fetchMessages(selectedChatId), 3000);
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
-  }, [selectedChatId]);
+  }, []);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
+  useEffect(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, [messages]);
 
-    if (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    ) {
-      return 'Today';
-    } else if (
-      date.getDate() === yesterday.getDate() &&
-      date.getMonth() === yesterday.getMonth() &&
-      date.getFullYear() === yesterday.getFullYear()
-    ) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString();
-    }
+  // Group messages by date
+  const groupMessagesByDate = () => {
+    const grouped = messages.reduce((acc, msg) => {
+      const date = moment(msg.created_at).format('YYYY-MM-DD');
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(msg);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return Object.entries(grouped).map(([date, msgs]) => ({
+      date,
+      messages: msgs,
+    }));
   };
 
-  const groupedMessages: { title: string; data: Message[] }[] = [];
-  chatMessages.forEach((msg) => {
-    const dateKey = formatDate(msg.created_at);
-    const group = groupedMessages.find((g) => g.title === dateKey);
-    if (group) {
-      group.data.push(msg);
-    } else {
-      groupedMessages.push({ title: dateKey, data: [msg] });
-    }
-  });
+  const renderDateLabel = (date: string) => {
+    const label = moment(date).calendar(null, {
+      sameDay: '[Today]',
+      lastDay: '[Yesterday]',
+      lastWeek: 'dddd',
+      sameElse: 'DD MMM YYYY',
+    });
 
-  const renderChatPreview = (chatId: string) => {
-    const chat = dummyChats[chatId];
     return (
-      <TouchableOpacity style={styles.card} onPress={() => handleOpenChat(chatId)} key={chatId}>
-        <Image source={{ uri: chat.itemImageUrl }} style={styles.itemImage} />
-        <View style={styles.chatContent}>
-          <Text style={styles.itemName}>{chat.itemName}</Text>
-          <Text style={styles.sellerName}>{chat.sellerName}</Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            Tap to view
-          </Text>
-          <View style={styles.chatFooter}>
-            <Text style={styles.chatLocation}>{chat.location}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+      <View style={styles.dateLabelContainer}>
+        <Text style={styles.dateLabelText}>{label}</Text>
+      </View>
     );
   };
 
-  const renderChatHistory = () => (
-    <View style={{ flex: 1 }}>
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSelectedChatId(null)}>
-          <Ionicons name="chevron-back" size={28} color="#fff" />
+        <TouchableOpacity onPress={() => router.push('/Inbox')}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={{ marginLeft: 10 }}>
-          <Text style={styles.headerTitle}>{selectedChat?.sellerName}</Text>
-          <Text style={styles.itemTitle}>{selectedChat?.itemName}</Text>
-        </View>
+        <Text style={styles.headerText}>{sellerName}</Text>
       </View>
 
       <FlatList
         ref={flatListRef}
-        data={groupedMessages}
-        keyExtractor={(item, index) => item.title + index}
+        data={groupMessagesByDate()}
+        keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => (
           <View>
-            <Text style={styles.dateHeader}>{item.title}</Text>
-            {item.data.map((msg) => (
-              <View
-                key={msg.id}
-                style={[
-                  styles.messageBubble,
-                  msg.sender_id === (user?.username || user?.id)
-                    ? styles.myMessage
-                    : styles.theirMessage,
-                ]}
-              >
-                <Text style={styles.messageText}>{msg.text}</Text>
-                <Text style={styles.timestamp}>
-                  {new Date(msg.created_at).toLocaleTimeString()}
-                </Text>
-              </View>
-            ))}
+            {renderDateLabel(item.date)}
+            {item.messages.map((msg) => {
+              const isSender = msg.sender_id === user?.id;
+              return (
+                <View
+                  key={msg.id}
+                  style={[
+                    styles.messageBubble,
+                    isSender ? styles.sent : styles.received,
+                  ]}
+                >
+                  <Text style={styles.messageText}>{msg.text}</Text>
+                  <Text style={styles.timestamp}>
+                    {new Date(msg.created_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         )}
-        contentContainerStyle={styles.messagesContainer}
+        contentContainerStyle={{ padding: 16 }}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
-        style={styles.inputContainer}
-      >
+      <View style={styles.inputContainer}>
         <TextInput
           placeholder="Type a message..."
-          style={styles.textInput}
-          value={newMessage}
-          onChangeText={setNewMessage}
+          style={styles.input}
+          value={text}
+          onChangeText={setText}
         />
-        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Ionicons name="send" size={22} color="#fff" />
+        <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
+          <Ionicons name="send" size={20} color="#fff" />
         </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={styles.safeContainer}>
-      {selectedChatId === null ? (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Chats</Text>
-          </View>
-
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchBar}
-              placeholder="Search chats..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          <FlatList
-            data={filteredChatKeys}
-            renderItem={({ item }) => renderChatPreview(item)}
-            keyExtractor={(item) => item}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={
-              <View style={styles.emptyListContainer}>
-                <Text style={styles.emptyListText}>No chats found.</Text>
-              </View>
-            }
-          />
-        </>
-      ) : (
-        renderChatHistory()
-      )}
-    </SafeAreaView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeContainer: { flex: 1, backgroundColor: '#FFF8E1' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFF8E1',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF9800',
-    padding: 15,
-    paddingTop: Platform.OS === 'android' ? 20 : 40,
-  },
-  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  itemTitle: { color: '#fff', fontSize: 14 },
-  searchContainer: {
-    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingBottom: 15,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: '#fb923c', // orange top bar
     borderBottomWidth: 1,
-    borderColor: '#EEEEEE',
+    borderBottomColor: '#eee',
   },
-  searchBar: {
-    height: 45,
-    borderColor: '#CCC',
-    borderWidth: 1,
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    backgroundColor: '#F5F5F5',
-    fontSize: 16,
-  },
-  listContainer: { paddingHorizontal: 16, paddingTop: 10 },
-  card: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-  },
-  itemImage: { width: 100, height: 100, resizeMode: 'cover' },
-  chatContent: { flex: 1, padding: 10, justifyContent: 'space-between' },
-  itemName: { fontSize: 16, fontWeight: 'bold', color: '#333333' },
-  sellerName: { fontSize: 13, color: '#666666' },
-  lastMessage: { fontSize: 14, color: '#555555', marginVertical: 4 },
-  chatFooter: { flexDirection: 'row', justifyContent: 'space-between' },
-  chatLocation: { fontSize: 12, color: '#999999' },
-  emptyListContainer: { padding: 30, alignItems: 'center' },
-  emptyListText: { fontSize: 16, color: '#777777' },
-  messagesContainer: { padding: 16 },
-  dateHeader: {
-    textAlign: 'center',
-    color: '#888',
-    fontSize: 12,
-    marginTop: 10,
-    marginBottom: 5,
+  headerText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 12,
+    color: '#fff', // white text
   },
   messageBubble: {
+    maxWidth: '80%',
+    marginBottom: 12,
     padding: 10,
     borderRadius: 10,
-    marginVertical: 5,
-    maxWidth: '75%',
   },
-  myMessage: {
-    backgroundColor: '#FF9800',
+  sent: {
     alignSelf: 'flex-end',
+    backgroundColor: '#fb923c',
   },
-  theirMessage: {
-    backgroundColor: '#F0F0F0',
+  received: {
     alignSelf: 'flex-start',
+    backgroundColor: '#eee',
   },
-  messageText: { fontSize: 15, color: '#333' },
+  messageText: {
+    color: '#000',
+    fontSize: 16,
+  },
   timestamp: {
     fontSize: 10,
-    color: '#666',
     marginTop: 4,
-    alignSelf: 'flex-end',
+    textAlign: 'right',
+    color: '#444',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
-    backgroundColor: '#FFFFFF',
+    padding: 12,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-    alignItems: 'center',
+    borderTopColor: '#eee',
   },
-  textInput: {
+  input: {
     flex: 1,
-    height: 45,
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     fontSize: 16,
-    marginRight: 10,
   },
   sendButton: {
-    backgroundColor: '#FF9800',
+    marginLeft: 8,
+    backgroundColor: '#fb923c',
+    borderRadius: 20,
     padding: 10,
-    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateLabelContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  dateLabelText: {
+    backgroundColor: '#f0c36d',
+    color: '#000',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    fontSize: 12,
   },
 });
