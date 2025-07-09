@@ -1,40 +1,67 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, ImageBackground } from 'react-native';
-import { Text, Button, Card } from 'react-native-paper';
-import { useOAuth, useUser } from '@clerk/clerk-expo';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  ImageBackground,
+  TextInput as NativeInput,
+} from 'react-native';
+import { Text, Button, Card, TextInput } from 'react-native-paper';
+import { useOAuth, useSignIn, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
+// import { useSignIn } from '@clerk/clerk-expo';
+
+// const { signIn, isLoaded } = useSignIn();
+
 
 export default function Login() {
   const router = useRouter();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
-  const { isLoaded, isSignedIn } = useUser();
+  const { signIn, isLoaded: signInLoaded } = useSignIn();
+  const { isLoaded: userLoaded, isSignedIn } = useUser();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [pending, setPending] = useState(false);
 
   // Redirect if already signed in
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
+    if (userLoaded && isSignedIn) {
       router.replace('/GetStarted');
     }
-  }, [isLoaded, isSignedIn]);
+  }, [userLoaded, isSignedIn]);
 
-  if (!isLoaded || isSignedIn) return null;
-
-  const handleSignInWithGoogle = async () => {
+  const handleGoogleLogin = async () => {
     try {
-      const { createdSessionId, setActive } = await startOAuthFlow();
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
+      const { createdSessionId } = await startOAuthFlow();
+      if (createdSessionId) {
+        // Session should be active after OAuth, just redirect
         router.replace('/GetStarted');
       }
-    } catch (err) {
-      if (err instanceof Error) {
-        console.error('OAuth error:', err.message);
-        alert(`Login failed: ${err.message}`);
-      } else {
-        console.error('OAuth error:', err);
-        alert('Login failed. Please try again.');
-      }
+    } catch (err: unknown) {
+      alert('Google login failed. Try again.');
     }
   };
+
+  const handleManualLogin = async () => {
+    if (!email || !password) return alert('Please enter both fields');
+    try {
+      setPending(true);
+      if (!signIn) throw new Error('SignIn not loaded');
+      const result = await signIn.create({ identifier: email, password });
+      if (result.status === 'complete') {
+        // Session should be active after manual login, just redirect
+        router.replace('/GetStarted');
+      } else {
+        alert('Login not completed.');
+      }
+    } catch (err: any) {
+      alert(err?.errors?.[0]?.message || err?.message || 'Login failed. Try again.');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  if (!signInLoaded || !userLoaded || isSignedIn) return null;
 
   return (
     <ImageBackground
@@ -50,16 +77,49 @@ export default function Login() {
           <Card.Content>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to Re:Vive</Text>
+
+            {/* Manual Login */}
+            <TextInput
+              mode="outlined"
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <TextInput
+              mode="outlined"
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              style={styles.input}
+            />
+            <Button
+              mode="contained"
+              onPress={handleManualLogin}
+              style={styles.manualBtn}
+              loading={pending}
+            >
+              Login with Email
+            </Button>
+
+            <Text style={styles.or}>OR</Text>
+
+            {/* Google Login */}
             <Button
               mode="contained"
               icon="google"
               style={styles.googleBtn}
-              labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
-              onPress={handleSignInWithGoogle}
+              onPress={handleGoogleLogin}
               contentStyle={{ paddingVertical: 8 }}
+              labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
             >
               Continue with Google
             </Button>
+
+            {/* Sign Up Redirect */}
             <Button
               mode="text"
               style={styles.linkBtn}
@@ -105,15 +165,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  input: {
+    marginBottom: 12,
+    backgroundColor: '#fff',
+  },
+  manualBtn: {
+    backgroundColor: '#fb923c',
+    borderRadius: 30,
+    marginBottom: 12,
   },
   googleBtn: {
     backgroundColor: 'black',
     borderRadius: 30,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#fb923c',
-    elevation: 2,
+    marginBottom: 12,
+  },
+  or: {
+    textAlign: 'center',
+    fontWeight: '600',
+    color: '#999',
+    marginVertical: 10,
   },
   linkBtn: {
     marginTop: 8,

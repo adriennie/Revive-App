@@ -1,300 +1,250 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
-  TouchableOpacity,
-  Image,
-  Dimensions,
   TextInput,
-  Platform,
+  TouchableOpacity,
+  StyleSheet,
   KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useUser } from '@clerk/clerk-expo';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import axios from 'axios';
+import moment from 'moment'; // ✅ Added
 
-const { width } = Dimensions.get('window');
-
-interface Message {
-  id: string;
+// Define a type for messages
+interface MessageType {
+  id?: string;
+  sender_id: string;
+  receiver_id: string;
+  chat_id: string;
   text: string;
-  sender: 'me' | 'them';
-  timestamp: string;
+  created_at: string;
+  [key: string]: any; // allow extra fields
 }
 
-interface ChatData {
-  sellerName: string;
-  itemName: string;
-  itemImageUrl: string;
-  location: string;
-  messages: Message[];
-}
+export default function Message() {
+  const { user } = useUser();
+  const router = useRouter();
+  const flatListRef = useRef<FlatList>(null);
 
-const dummyChats: Record<string, ChatData> = {
-  chat1: {
-    sellerName: 'Ravi from Hazratganj',
-    itemName: 'Leftover Biryani',
-    itemImageUrl: 'https://images.unsplash.com/photo-1617196038437-83cc9c0dbd8e?auto=format&fit=crop&w=400&q=80',
-    location: 'Lucknow - Hazratganj',
-    messages: [
-      { id: '1', text: 'Hey! Is this still available?', sender: 'me', timestamp: '10:00 AM' },
-      { id: '2', text: 'Yes, pick up anytime.', sender: 'them', timestamp: '10:02 AM' },
-    ],
-  },
-  chat2: {
-    sellerName: 'Priya from Noida',
-    itemName: 'Dell Charger',
-    itemImageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=400&q=80',
-    location: 'Noida',
-    messages: [
-      { id: '1', text: 'Is it compatible with XPS?', sender: 'me', timestamp: '9:00 AM' },
-      { id: '2', text: 'Yes, it works.', sender: 'them', timestamp: '9:05 AM' },
-    ],
-  },
-};
+  const { chat_id, receiver_id, sellerName } = useLocalSearchParams<{
+    chat_id: string;
+    receiver_id: string;
+    sellerName: string;
+    itemName: string;
+    itemImageUrl: string;
+  }>();
 
-export default function ChatsScreen() {
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [messages, setMessages] = useState<MessageType[]>([]);
+  const [text, setText] = useState('');
 
-  const chatKeys = Object.keys(dummyChats);
-  const filteredChatKeys = chatKeys.filter(chatId => {
-    const chat = dummyChats[chatId];
+  const fetchMessages = async () => {
+    try {
+      const res = await axios.get(`http://localhost:3001/messages/${chat_id}`);
+      setMessages(res.data.messages);
+    } catch (err) {
+      console.error('Failed to fetch messages:', err);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!text.trim()) return;
+
+    try {
+      await axios.post('http://localhost:3001/send-message', {
+        chat_id,
+        sender_id: user?.id,
+        receiver_id,
+        text,
+      });
+      setText('');
+      fetchMessages();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, [messages]);
+
+  // Group messages by date
+  const groupMessagesByDate = () => {
+    const grouped = messages.reduce((acc, msg) => {
+      const date = moment(msg.created_at).format('YYYY-MM-DD');
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(msg);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return Object.entries(grouped).map(([date, msgs]) => ({
+      date,
+      messages: msgs,
+    }));
+  };
+
+  const renderDateLabel = (date: string) => {
+    const label = moment(date).calendar(null, {
+      sameDay: '[Today]',
+      lastDay: '[Yesterday]',
+      lastWeek: 'dddd',
+      sameElse: 'DD MMM YYYY',
+    });
+
     return (
-      chat.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.sellerName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
-
-  const selectedChat = selectedChatId ? dummyChats[selectedChatId] : null;
-
-  const renderChatPreview = (chatId: string) => {
-    const chat = dummyChats[chatId];
-    const lastMessage = chat.messages[chat.messages.length - 1];
-    return (
-      <TouchableOpacity style={styles.card} onPress={() => setSelectedChatId(chatId)} key={chatId}>
-        <Image source={{ uri: chat.itemImageUrl }} style={styles.itemImage} />
-        <View style={styles.chatContent}>
-          <Text style={styles.itemName}>{chat.itemName}</Text>
-          <Text style={styles.sellerName}>{chat.sellerName}</Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>{lastMessage?.text}</Text>
-          <View style={styles.chatFooter}>
-            <Text style={styles.chatTime}>{lastMessage?.timestamp}</Text>
-            <Text style={styles.chatLocation}>{chat.location}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+      <View style={styles.dateLabelContainer}>
+        <Text style={styles.dateLabelText}>{label}</Text>
+      </View>
     );
   };
 
-  const renderChatHistory = () => (
-    <View style={{ flex: 1 }}>
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSelectedChatId(null)}>
-          <Ionicons name="chevron-back" size={28} color="#fff" />
+        <TouchableOpacity onPress={() => router.push('/Inbox')}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={{ marginLeft: 10 }}>
-          <Text style={styles.headerTitle}>{selectedChat?.sellerName}</Text>
-          <Text style={styles.itemTitle}>{selectedChat?.itemName}</Text>
-        </View>
+        <Text style={styles.headerText}>{sellerName}</Text>
       </View>
 
       <FlatList
-        data={selectedChat?.messages}
-        keyExtractor={(msg) => msg.id}
+        ref={flatListRef}
+        data={groupMessagesByDate()}
+        keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => (
-          <View style={[styles.messageBubble, item.sender === 'me' ? styles.myMessage : styles.theirMessage]}>
-            <Text style={styles.messageText}>{item.text}</Text>
-            <Text style={styles.timestamp}>{item.timestamp}</Text>
+          <View>
+            {renderDateLabel(item.date)}
+            {item.messages.map((msg: any) => {
+              const isSender = msg.sender_id === user?.id;
+              return (
+                <View
+                  key={msg.id}
+                  style={[
+                    styles.messageBubble,
+                    isSender ? styles.sent : styles.received,
+                  ]}
+                >
+                  <Text style={styles.messageText}>{msg.text}</Text>
+                  <Text style={styles.timestamp}>
+                    {new Date(msg.created_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         )}
-        contentContainerStyle={styles.messagesContainer}
+        contentContainerStyle={{ padding: 16 }}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
-        style={styles.inputContainer}
-      >
-        <TextInput placeholder="Type a message..." style={styles.textInput} />
-        <TouchableOpacity style={styles.sendButton}>
-          <Ionicons name="send" size={22} color="#fff" />
+      <View style={styles.inputContainer}>
+        <TextInput
+          placeholder="Type a message..."
+          style={styles.input}
+          value={text}
+          onChangeText={setText}
+        />
+        <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
+          <Ionicons name="send" size={20} color="#fff" />
         </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={styles.safeContainer}>
-      {selectedChatId === null ? (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Chats</Text>
-          </View>
-
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchBar}
-              placeholder="Search chats..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          <FlatList
-            data={filteredChatKeys}
-            renderItem={({ item }) => renderChatPreview(item)}
-            keyExtractor={(item) => item}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={
-              <View style={styles.emptyListContainer}>
-                <Text style={styles.emptyListText}>No chats found.</Text>
-              </View>
-            }
-          />
-        </>
-      ) : (
-        renderChatHistory()
-      )}
-    </SafeAreaView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeContainer: { flex: 1, backgroundColor: '#FFF8E1' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFF8E1',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF9800',
-    padding: 15,
-    paddingTop: Platform.OS === 'android' ? 20 : 40,
-  },
-  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  itemTitle: { color: '#fff', fontSize: 14 },
-  searchContainer: {
-    backgroundColor: '#FFFFFF',
+    paddingTop: 50,
+    paddingBottom: 15,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: '#fb923c', // orange top bar
     borderBottomWidth: 1,
-    borderColor: '#EEEEEE',
+    borderBottomColor: '#eee',
   },
-  searchBar: {
-    height: 45,
-    borderColor: '#CCC',
-    borderWidth: 1,
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    backgroundColor: '#F5F5F5',
-    fontSize: 16,
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-  },
-  card: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-  },
-  itemImage: {
-    width: 100,
-    height: 100,
-    resizeMode: 'cover',
-  },
-  chatContent: {
-    flex: 1,
-    padding: 10,
-    justifyContent: 'space-between',
-  },
-  itemName: {
-    fontSize: 16,
+  headerText: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333333',
-  },
-  sellerName: {
-    fontSize: 13,
-    color: '#666666',
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#555555',
-    marginVertical: 4,
-  },
-  chatFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  chatTime: {
-    fontSize: 12,
-    color: '#999999',
-  },
-  chatLocation: {
-    fontSize: 12,
-    color: '#999999',
-  },
-  emptyListContainer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  emptyListText: {
-    fontSize: 16,
-    color: '#777777',
-  },
-  messagesContainer: {
-    padding: 16,
+    marginLeft: 12,
+    color: '#fff', // white text
   },
   messageBubble: {
+    maxWidth: '80%',
+    marginBottom: 12,
     padding: 10,
     borderRadius: 10,
-    marginVertical: 5,
-    maxWidth: '75%',
   },
-  myMessage: {
-    backgroundColor: '#FF9800',
+  sent: {
     alignSelf: 'flex-end',
+    backgroundColor: '#fb923c',
   },
-  theirMessage: {
-    backgroundColor: '#F0F0F0',
+  received: {
     alignSelf: 'flex-start',
+    backgroundColor: '#eee',
   },
   messageText: {
-    fontSize: 15,
-    color: '#333',
+    color: '#000',
+    fontSize: 16,
   },
   timestamp: {
     fontSize: 10,
-    color: '#666',
     marginTop: 4,
-    alignSelf: 'flex-end',
+    textAlign: 'right',
+    color: '#444',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
-    backgroundColor: '#FFFFFF',
+    padding: 12,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-    alignItems: 'center',
+    borderTopColor: '#eee',
   },
-  textInput: {
+  input: {
     flex: 1,
-    height: 45,
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     fontSize: 16,
-    marginRight: 10,
   },
   sendButton: {
-    backgroundColor: '#FF9800',
+    marginLeft: 8,
+    backgroundColor: '#fb923c',
+    borderRadius: 20,
     padding: 10,
-    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateLabelContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  dateLabelText: {
+    backgroundColor: '#f0c36d',
+    color: '#000',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    fontSize: 12,
   },
 });

@@ -92,7 +92,7 @@ export default function GetStarted() {
         </View>
 
         <View style={styles.tabItem}>
-          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Message')}>
+          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Inbox')}>
           <MaterialIcons name="email" size={22} color="#000" />
           <Text style={styles.tabText}>Messages</Text>
           </TouchableOpacity>
