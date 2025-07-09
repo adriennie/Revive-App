@@ -113,6 +113,7 @@ export default function AddItemScreen() {
       }
 
       const itemData = {
+      const itemData = {
         name,
         price: parseFloat(price),
         description,
