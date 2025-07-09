@@ -45,7 +45,7 @@ export default function ProductScreen() {
     const chatId = [currentUser.id, user.clerk_user_id].sort().join('-');
 
     try {
-      await axios.post('http://192.168.29.47:3001/create-chat', {
+      await axios.post('http://localhost:3001/create-chat', {
         chat_id: chatId,
         sender_id: currentUser.id,
         receiver_id: user.clerk_user_id,

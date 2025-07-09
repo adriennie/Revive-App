@@ -15,6 +15,17 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
 import moment from 'moment'; // ✅ Added
 
+// Define a type for messages
+interface MessageType {
+  id?: string;
+  sender_id: string;
+  receiver_id: string;
+  chat_id: string;
+  text: string;
+  created_at: string;
+  [key: string]: any; // allow extra fields
+}
+
 export default function Message() {
   const { user } = useUser();
   const router = useRouter();
@@ -28,12 +39,12 @@ export default function Message() {
     itemImageUrl: string;
   }>();
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<MessageType[]>([]);
   const [text, setText] = useState('');
 
   const fetchMessages = async () => {
     try {
-      const res = await axios.get(`http://192.168.29.47:3001/messages/${chat_id}`);
+      const res = await axios.get(`http://localhost:3001/messages/${chat_id}`);
       setMessages(res.data.messages);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
@@ -44,7 +55,7 @@ export default function Message() {
     if (!text.trim()) return;
 
     try {
-      await axios.post('http://192.168.29.47:3001/send-message', {
+      await axios.post('http://localhost:3001/send-message', {
         chat_id,
         sender_id: user?.id,
         receiver_id,
@@ -116,7 +127,7 @@ export default function Message() {
         renderItem={({ item }) => (
           <View>
             {renderDateLabel(item.date)}
-            {item.messages.map((msg) => {
+            {item.messages.map((msg: any) => {
               const isSender = msg.sender_id === user?.id;
               return (
                 <View

@@ -19,7 +19,7 @@ app.post('/send-message', async (req, res) => {
   const { sender_id, receiver_id, chat_id, text } = req.body;
 
   if (!sender_id || !receiver_id || !chat_id || !text) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(400).json({ error: 'Missing required fields'});
   }
 
   try {

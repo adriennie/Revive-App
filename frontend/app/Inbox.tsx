@@ -14,17 +14,29 @@ import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import moment from 'moment';
 
+// Define a type for chat items
+interface ChatType {
+  chat_id: string;
+  sender_id: string;
+  receiver_id: string;
+  sender_name?: string;
+  receiver_name?: string;
+  item_name?: string;
+  item_image_url?: string;
+  created_at: string;
+  [key: string]: any; // allow extra fields
+}
 
 export default function Inbox() {
   const { user } = useUser();
   const router = useRouter();
-  const [chats, setChats] = useState([]);
+  const [chats, setChats] = useState<ChatType[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchInbox = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`http://192.168.29.47:3001/inbox/${user.id}`);
+      const res = await axios.get(`http://localhost:3001/inbox/${user.id}`);
       setChats(res.data || []);
     } catch (err) {
       console.error('Error fetching inbox:', err);
@@ -56,7 +68,7 @@ export default function Inbox() {
   }
 
   const uniqueChats = Object.values(
-    chats.reduce((acc, chat) => {
+    chats.reduce((acc: Record<string, ChatType>, chat: ChatType) => {
       acc[chat.chat_id] = chat;
       return acc;
     }, {})
@@ -70,11 +82,12 @@ export default function Inbox() {
 
       <FlatList
         data={uniqueChats}
-        keyExtractor={(item) => item.chat_id}
+        keyExtractor={(item) => (item as ChatType).chat_id}
         renderItem={({ item }) => {
-          const receiverId = item.receiver_id === user.id ? item.sender_id : item.receiver_id;
-          const receiverName = item.receiver_name === user.fullName ? item.sender_name : item.receiver_name;
-          const formattedDate = moment(item.created_at).calendar(null, {
+          const chat = item as ChatType;
+          const receiverId = chat.receiver_id === user?.id ? chat.sender_id : chat.receiver_id;
+          const receiverName = chat.receiver_name === user?.fullName ? chat.sender_name : chat.receiver_name;
+          const formattedDate = moment(chat.created_at).calendar(null, {
             sameDay: '[Today]',
             lastDay: '[Yesterday]',
             lastWeek: 'dddd',
@@ -88,22 +101,22 @@ export default function Inbox() {
                 router.push({
                   pathname: '/Message',
                   params: {
-                    chat_id: item.chat_id,
+                    chat_id: chat.chat_id,
                     receiver_id: receiverId,
                     sellerName: receiverName,
-                    itemName: item.item_name,
-                    itemImageUrl: item.item_image_url,
+                    itemName: chat.item_name,
+                    itemImageUrl: chat.item_image_url,
                   },
                 })
               }
             >
               <Image
-                source={{ uri: item.item_image_url }}
+                source={{ uri: chat.item_image_url }}
                 style={styles.avatar}
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{receiverName}</Text>
-                <Text style={styles.item}>{item.item_name}</Text>
+                <Text style={styles.item}>{chat.item_name}</Text>
               </View>
               <Text style={styles.date}>{formattedDate}</Text>
             </TouchableOpacity>
