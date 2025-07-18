@@ -4,60 +4,218 @@ import {
   StyleSheet,
   ImageBackground,
   TextInput as NativeInput,
+  Alert,
 } from 'react-native';
 import { Text, Button, Card, TextInput } from 'react-native-paper';
 import { useOAuth, useSignIn, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-// import { useSignIn } from '@clerk/clerk-expo';
-
-// const { signIn, isLoaded } = useSignIn();
-
+import { api } from '@/lib/api';
+import { AuthService } from '@/lib/authService';
+import { isNetworkError, getNetworkErrorMessage } from '@/utils/networkUtils';
+import { useAuth } from '@clerk/clerk-expo';
 
 export default function Login() {
   const router = useRouter();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   const { signIn, isLoaded: signInLoaded } = useSignIn();
-  const { isLoaded: userLoaded, isSignedIn } = useUser();
+  const { isLoaded: userLoaded, isSignedIn, user } = useUser();
+  const { getToken, signOut, isSignedIn: isClerkSignedIn } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
+  const [googleOAuthCompleted, setGoogleOAuthCompleted] = useState(false);
+
+  // Watch for user changes after Google OAuth
+  useEffect(() => {
+    if (googleOAuthCompleted && user && isSignedIn) {
+      console.log('🎉 Google OAuth user detected:', user);
+      
+      // Create session for Google OAuth user
+      const googleUserName = user.firstName || 
+                           user.fullName || 
+                           user.primaryEmailAddress?.emailAddress?.split('@')[0] || 
+                           'User';
+      const googleUserEmail = user.primaryEmailAddress?.emailAddress || '';
+      const googleUserId = user.id || `google_${Date.now()}`;
+      
+      const googleSession = {
+        id: googleUserId,
+        name: googleUserName,
+        email: googleUserEmail,
+        isAuthenticated: true
+      };
+      
+      console.log('💾 Creating session for Google OAuth user:', googleSession);
+      
+      AuthService.storeSession(googleSession).then(() => {
+        console.log('🔄 Redirecting to GetStarted after Google OAuth session creation...');
+        router.replace('/GetStarted');
+        setGoogleOAuthCompleted(false); // Reset flag
+      });
+    }
+  }, [googleOAuthCompleted, user, isSignedIn]);
 
   // Redirect if already signed in
   useEffect(() => {
     if (userLoaded && isSignedIn) {
+      console.log('🔄 User already signed in, redirecting to GetStarted...');
       router.replace('/GetStarted');
     }
   }, [userLoaded, isSignedIn]);
 
   const handleGoogleLogin = async () => {
     try {
-      const { createdSessionId } = await startOAuthFlow();
+      setPending(true);
+      console.log('🚀 Starting Google OAuth login process...');
+      
+      const { createdSessionId, signIn, signUp } = await startOAuthFlow();
+      
+      console.log('✅ Google OAuth result:', { 
+        createdSessionId: !!createdSessionId,
+        signIn: !!signIn,
+        signUp: !!signUp
+      });
+
       if (createdSessionId) {
-        // Session should be active after OAuth, just redirect
-        router.replace('/GetStarted');
+        // Wait a moment for Clerk to update the user state
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Log the Clerk user ID if available
+        if (user && user.id) {
+          console.log('Clerk user ID after Google OAuth:', user.id);
+        } else {
+          console.log('Clerk user ID not available after Google OAuth.');
+        }
       }
-    } catch (err: unknown) {
-      alert('Google login failed. Try again.');
+    } catch (err) {
+      const error = err as Error;
+      console.error('💥 Google login error:', err);
+      Alert.alert('Error', 'Google login failed. Try again.');
+    } finally {
+      setPending(false);
+      console.log('🏁 Google login process completed');
     }
   };
 
   const handleManualLogin = async () => {
-    if (!email || !password) return alert('Please enter both fields');
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both fields');
+      return;
+    }
+    
     try {
       setPending(true);
-      if (!signIn) throw new Error('SignIn not loaded');
+      console.log('🚀 Starting manual login process...');
+      console.log('📝 Login details:', { email, hasPassword: !!password });
+      
+      // First, try to authenticate with our database
+      console.log('🔍 Looking up user in database...');
+      const authResult = await AuthService.authenticateUser(email);
+      
+      if (authResult.success && authResult.user) {
+        console.log('✅ User found in database:', authResult.user);
+        
+        // Create session for database user
+        const session = AuthService.createSession(authResult.user);
+        await AuthService.storeSession(session);
+        
+        console.log('💾 Session created and stored:', session);
+        console.log('🔄 Redirecting to GetStarted after database login...');
+        
+        Alert.alert(
+          'Login Successful!',
+          `Welcome back, ${authResult.user.name}!`,
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                router.replace('/GetStarted');
+              }
+            }
+          ]
+        );
+        return;
+      }
+      
+      // If not found in database, try Clerk authentication
+      console.log('🔍 User not found in database, trying Clerk authentication...');
+      
+      if (!signIn) {
+        console.error('❌ SignIn not loaded');
+        throw new Error('SignIn not loaded');
+      }
+      
+      console.log('🔐 Attempting to sign in with Clerk...');
       const result = await signIn.create({ identifier: email, password });
+      
+      console.log('✅ Manual login result:', { 
+        status: result.status,
+        createdSessionId: !!result.createdSessionId
+      });
+      
       if (result.status === 'complete') {
+        console.log('✅ Manual login successful');
+        console.log('🔄 Redirecting to GetStarted after manual login...');
         // Session should be active after manual login, just redirect
         router.replace('/GetStarted');
       } else {
-        alert('Login not completed.');
+        console.error('❌ Manual login not completed:', result.status);
+        Alert.alert('Error', 'Login not completed.');
       }
-    } catch (err: any) {
-      alert(err?.errors?.[0]?.message || err?.message || 'Login failed. Try again.');
+    } catch (err) {
+      const error = err as Error & { errors?: Array<{ message: string }> };
+      console.error('💥 Manual login error:', err);
+      console.error('Error details:', {
+        message: error?.message,
+        errors: error?.errors,
+        stack: error?.stack
+      });
+      
+      // Check if it's a "Couldn't find your account" error
+      if (error?.message?.includes("Couldn't find your account")) {
+        Alert.alert(
+          'Account Not Found',
+          'No account found with these credentials. Please check your email and password, or create a new account.',
+          [
+            {
+              text: 'Create Account',
+              onPress: () => router.push('./sign-up')
+            },
+            {
+              text: 'Try Again',
+              onPress: () => {
+                setEmail('');
+                setPassword('');
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+      } else if (isNetworkError(error)) {
+        Alert.alert(
+          'Network Error',
+          getNetworkErrorMessage(error),
+          [
+            {
+              text: 'Try Again',
+              onPress: () => handleManualLogin()
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', error?.errors?.[0]?.message || error?.message || 'Login failed. Try again.');
+      }
     } finally {
       setPending(false);
+      console.log('🏁 Manual login process completed');
     }
   };
 
@@ -115,6 +273,7 @@ export default function Login() {
               onPress={handleGoogleLogin}
               contentStyle={{ paddingVertical: 8 }}
               labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
+              loading={pending}
             >
               Continue with Google
             </Button>

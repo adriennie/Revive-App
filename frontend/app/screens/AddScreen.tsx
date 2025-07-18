@@ -112,7 +112,7 @@ export default function AddItemScreen() {
         publicImageUrl = publicUrlData?.publicUrl;
       }
 
-      const itemData = {
+     
       const itemData = {
         name,
         price: parseFloat(price),
