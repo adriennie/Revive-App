@@ -3,10 +3,28 @@ import { ClerkProvider } from '@clerk/clerk-expo';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { CaptchaFallback } from '../components/CaptchaFallback';
 
 export default function RootLayout() {
   return (
-    <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider 
+      publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      appearance={{
+        elements: {
+          formButtonPrimary: {
+            backgroundColor: '#fb923c',
+            '&:hover': {
+              backgroundColor: '#ea580c'
+            }
+          }
+        }
+      }}
+      signInUrl="/login"
+      signUpUrl="/sign-up"
+      afterSignInUrl="/GetStarted"
+      afterSignUpUrl="/login"
+    >
+      <CaptchaFallback />
       <SafeAreaProvider>
         <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>

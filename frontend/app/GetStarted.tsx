@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import { AuthService } from '@/lib/authService';
+import { api } from '@/lib/api';
 
 const categories = [
   { title: 'Free food', route: '/FreeFood' },
@@ -19,13 +21,64 @@ const categories = [
 ];
 
 export default function GetStarted() {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { user } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const location = 'XYZ';
+  const [userName, setUserName] = useState('Guest');
+  const [loading, setLoading] = useState(true);
 
-  if (!isLoaded) return null;
+  useEffect(() => {
+    const fetchUser = async () => {
+      setLoading(true);
+      let clerkId = null;
 
-  const userName = isSignedIn ? user?.firstName ?? 'Guest' : 'Guest';
+      if (user) {
+        setUserName(user.firstName || user.fullName || 'User');
+        setLoading(false);
+        return;
+      }
+
+      // Try to get Clerk ID from token or session
+      try {
+        const token = await getToken();
+        if (token) {
+          // Fetch Clerk user info from API
+          const res = await fetch('https://api.clerk.dev/v1/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            clerkId = data.id;
+            console.log('Clerk ID used for DB lookup:', clerkId);
+          }
+        }
+      } catch (e) {
+        console.log('Failed to fetch Clerk user from API:', e);
+      }
+
+      // If we have a Clerk ID, fetch user from our DB
+      if (clerkId) {
+        try {
+          const dbRes = await api.getUserByClerkId(clerkId);
+          console.log('DB response:', dbRes);
+          if (dbRes.success && dbRes.user) {
+            setUserName(dbRes.user.name || 'User');
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.log('Failed to fetch user from DB:', e);
+        }
+      }
+
+      setLoading(false);
+    };
+
+    fetchUser();
+  }, [user, getToken]);
+
+  if (loading) return null;
 
   return (
     <SafeAreaView style={styles.safeContainer}>

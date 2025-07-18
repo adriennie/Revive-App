@@ -1,13 +1,14 @@
 {
   "name": "backend",
-  "module": "index.ts",
+  "module": "index.js",
   "type": "module",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -21,7 +22,7 @@
     "firebase-admin": "^13.4.0",
     "jsonwebtoken": "^9.0.2"
   },
-  "description": "To install dependencies:",
+  "description": "Backend server for ReVive app",
   "version": "1.0.0",
   "main": "index.js",
   "keywords": [],
