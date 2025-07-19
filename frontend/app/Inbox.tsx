@@ -36,7 +36,7 @@ export default function Inbox() {
   const fetchInbox = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`http://localhost:3001/inbox/${user.id}`);
+      const res = await axios.get(`http://192.168.1.3:3001/inbox/${user.id}`);
       setChats(res.data || []);
     } catch (err) {
       console.error('Error fetching inbox:', err);

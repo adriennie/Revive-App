@@ -1,4 +1,3 @@
-// File: app/FreeNonFood.tsx
 import React, { useState, FC, useEffect } from 'react';
 import {
   View,
@@ -11,10 +10,11 @@ import {
   TextInput,
   Platform,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 
 const { width } = Dimensions.get('window');
@@ -32,16 +32,17 @@ interface Item {
 }
 
 const FreeNonFood: FC = () => {
+  const router = useRouter();
+  const { currentUserId } = useLocalSearchParams<{ currentUserId: string }>();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showPopular, setShowPopular] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(true);
 
-  // Fetch data from Supabase
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -73,11 +74,17 @@ const FreeNonFood: FC = () => {
   const renderItem = ({ item }: { item: Item }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push({ pathname: '/ProductScreen', params: { id: item.id } })}
+      onPress={() => router.push({
+        pathname: '/ProductScreen',
+        params: {
+          id: item.id,
+          currentUserId: currentUserId
+        }
+      })}
     >
       <Image source={{ uri: item.image_url }} style={styles.cardImage} />
       <View style={styles.cardContent}>
-        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.itemCondition}>{item.condition}</Text>
         <Text style={styles.itemLocation}>{item.location}</Text>
       </View>
@@ -97,12 +104,10 @@ const FreeNonFood: FC = () => {
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-
         <TouchableOpacity style={styles.toggleFiltersHeader} onPress={() => setShowFilters(!showFilters)}>
           <Text style={styles.toggleFiltersText}>Filters</Text>
           <Ionicons name={showFilters ? 'chevron-up' : 'chevron-down'} size={24} color="#333" />
         </TouchableOpacity>
-
         {showFilters && (
           <View>
             <Text style={styles.filterLabel}>Category</Text>
@@ -133,15 +138,19 @@ const FreeNonFood: FC = () => {
           </View>
         )}
       </View>
-
-      <FlatList
-        data={filteredItems}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 16 }}
-        contentContainerStyle={{ paddingVertical: 16 }}
-      />
+      
+      {loading ? (
+        <ActivityIndicator size="large" color="#FF9800" style={{ flex: 1 }} />
+      ) : (
+        <FlatList
+          data={filteredItems}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 16 }}
+          contentContainerStyle={{ paddingVertical: 16 }}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -221,6 +230,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
     elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
   },
   cardImage: {
     width: '100%',

@@ -40,6 +40,7 @@ export default function RootLayout() {
           <Stack.Screen name="Message" />
           <Stack.Screen name="Chat" />
           <Stack.Screen name="ProductScreen" />
+          <Stack.Screen name="Notifications" />
           
           {/* Main Tab Screens */}
           {/* <Stack.Screen name="(tabs)" options={{ headerShown: false }} /> */}

@@ -1,130 +1,162 @@
-// ✅ ProductScreen.tsx (Updated to call /create-chat)
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { useUser } from '@clerk/clerk-expo';
 import axios from 'axios';
+
+const API_BASE_URL = 'http://192.168.1.3:3001'; 
 
 export default function ProductScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // Get both the product ID (renamed to itemId for clarity) and the current user's ID
+  const { id: itemId, currentUserId } = useLocalSearchParams<{ id: string, currentUserId: string }>();
+  
   const [product, setProduct] = useState<any>(null);
-  const [user, setUser] = useState<any>(null);
+  const [owner, setOwner] = useState<any>(null); // The item's owner
   const [loading, setLoading] = useState(true);
-  const { user: currentUser } = useUser();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchProduct = async () => {
+    const fetchProductAndOwner = async () => {
+      if (!itemId) return;
+
       setLoading(true);
-      const { data, error } = await supabase
-        .from('itemdata')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (data) {
-        setProduct(data);
-        if (data.clerk_user_id) {
-          const { data: userData } = await supabase
+      try {
+        const { data: productData, error: productError } = await supabase
+          .from('itemdata')
+          .select('*')
+          .eq('id', itemId)
+          .single();
+
+        if (productError) throw productError;
+        setProduct(productData);
+
+        if (productData.user_id) {
+          const { data: ownerData, error: ownerError } = await supabase
             .from('users')
             .select('*')
-            .eq('clerk_user_id', data.clerk_user_id)
+            .eq('id', productData.user_id)
             .single();
-          setUser(userData);
+          
+          if (ownerError) throw ownerError;
+          setOwner(ownerData);
         }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        Alert.alert("Error", "Could not load product details.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-    if (id) fetchProduct();
-  }, [id]);
+
+    fetchProductAndOwner();
+  }, [itemId]);
 
   const handleContactPress = async () => {
-    if (!currentUser || !user || !product) return;
-
-    const chatId = [currentUser.id, user.clerk_user_id].sort().join('-');
-
-    try {
-      await axios.post('http://localhost:3001/create-chat', {
-        chat_id: chatId,
-        sender_id: currentUser.id,
-        receiver_id: user.clerk_user_id,
-        item_name: product.name,
-        receiver_name: user.name,
-      });
-    } catch (err) {
-      console.error('Failed to create chat:', err);
+    // Check for the SENDER's ID (currentUserId) and the RECEIVER's object (owner)
+    if (!currentUserId || !owner) {
+      Alert.alert("Error", "Cannot start a chat. User or owner information is missing.");
+      return;
     }
-
+    
+    // Create a chat ID using both the sender's and receiver's IDs
+    const chatId = [currentUserId, owner.id].sort().join('-'); 
+    
+    await axios.post(`${API_BASE_URL}/api/create-chat`, {
+        chat_id: chatId,
+        sender_id: currentUserId, // Sender is the current user
+        receiver_id: owner.id,   // Receiver is the item owner
+        item_name: product.name,
+        receiver_name: owner.name,
+    });
+    
     router.push({
       pathname: '/Message',
       params: {
         chat_id: chatId,
-        receiver_id: user.clerk_user_id,
-        sellerName: user.name,
+        sender_id: currentUserId, // Pass both IDs to the message screen
+        receiver_id: owner.id,
+        sellerName: owner.name,
         itemName: product.name,
-        itemImageUrl: product.image_url,
-        location: user.location || 'Unknown',
       },
     });
+  }
+
+  const handleExpressInterest = async () => {
+    if (!currentUserId || !product) {
+      Alert.alert('Error', 'Cannot express interest. Your user ID is missing.');
+      return;
+    }
+    
+    setIsSubmitting(true);
+
+    const orderPayload = {
+      current_user_id: currentUserId,
+      item_id: product.id,
+      owner_user_id: product.user_id,
+      timestamp: new Date().toISOString(),
+      status: false,
+    };
+
+    try {
+      await axios.post(`${API_BASE_URL}/orders/new`, orderPayload);
+      Alert.alert('Success!', 'Your interest has been registered.');
+    } catch (error) {
+      console.error('Failed to express interest:', error);
+      Alert.alert('Error', 'Could not register your interest.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#fb923c" />
-      </View>
-    );
+    return <View style={styles.centered}><ActivityIndicator size="large" color="#fb923c" /></View>;
   }
 
   if (!product) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.productTitle}>Product not found.</Text>
-      </View>
-    );
+    return <View style={styles.centered}><Text style={styles.productTitle}>Product not found.</Text></View>;
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFF8E1' }}>
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={28} color="#222" />
-        </TouchableOpacity>
-      </View>
-
-      <Image
-        source={{ uri: product?.image_url || 'https://via.placeholder.com/300x300.png?text=No+Image' }}
-        style={styles.image}
-      />
-
-      <ScrollView style={styles.detailsContainer} contentContainerStyle={{ paddingBottom: 120 }}>
-        <Text style={styles.productTitle}>{product.name}</Text>
-        <Text style={styles.productDesc}>{product.description}</Text>
-        <Text style={styles.sectionTitle}>Condition</Text>
-        <Text style={styles.sectionValue}>{product.condition}</Text>
-        <Text style={styles.sectionTitle}>Requirements</Text>
-        <Text style={styles.sectionValue}>{product.requirements || 'None specified.'}</Text>
-        <Text style={styles.sectionTitle}>Offered by</Text>
-        {user && (
-          <View style={styles.userRow}>
-            <Image source={{ uri: user.photo_url }} style={styles.avatar} />
-            <View>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userMeta}>Joined {new Date(user.created_at).getFullYear()}</Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.contactBtn} onPress={handleContactPress}>
-          <Text style={styles.btnText}>Contact</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.interestBtn}>
-          <Text style={styles.btnTextAlt}>Express Interest</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.topBar}>
+            <TouchableOpacity onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={28} color="#222" />
+            </TouchableOpacity>
+        </View>
+        <Image
+            source={{ uri: product?.image_url || 'https://via.placeholder.com/300x300.png?text=No+Image' }}
+            style={styles.image}
+        />
+        <ScrollView style={styles.detailsContainer} contentContainerStyle={{ paddingBottom: 120 }}>
+            <Text style={styles.productTitle}>{product.name}</Text>
+            <Text style={styles.productDesc}>{product.description}</Text>
+            <Text style={styles.sectionTitle}>Condition</Text>
+            <Text style={styles.sectionValue}>{product.condition}</Text>
+            <Text style={styles.sectionTitle}>Offered by</Text>
+            {owner && (
+                <View style={styles.userRow}>
+                    <Image source={{ uri: owner.photo_url }} style={styles.avatar} />
+                    <View>
+                        <Text style={styles.userName}>{owner.name}</Text>
+                        <Text style={styles.userMeta}>Joined {new Date(owner.created_at).getFullYear()}</Text>
+                    </View>
+                </View>
+            )}
+        </ScrollView>
+        <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.contactBtn} onPress={handleContactPress} disabled={!owner}>
+                <Text style={styles.btnText}>Contact</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.interestBtn, isSubmitting && styles.submittingBtn]}
+                onPress={handleExpressInterest}
+                disabled={isSubmitting}
+            >
+                {isSubmitting ? <ActivityIndicator color="#555" /> : <Text style={styles.btnTextAlt}>Express Interest</Text>}
+            </TouchableOpacity>
+        </View>
     </View>
   );
 }
@@ -144,6 +176,7 @@ const styles = StyleSheet.create({
   buttonRow: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', backgroundColor: '#fff', padding: 16, gap: 12, justifyContent: 'space-between' },
   contactBtn: { flex: 1, backgroundColor: '#4ADE80', borderRadius: 12, alignItems: 'center', paddingVertical: 14, marginRight: 8 },
   interestBtn: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 12, alignItems: 'center', paddingVertical: 14, marginLeft: 8 },
+  submittingBtn: { backgroundColor: '#E5E7EB' },
   btnText: { color: '#222', fontWeight: 'bold', fontSize: 16 },
   btnTextAlt: { color: '#222', fontWeight: 'bold', fontSize: 16 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' },

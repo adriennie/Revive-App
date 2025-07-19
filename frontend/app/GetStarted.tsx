@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,136 +7,69 @@ import {
   SafeAreaView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import { AuthService } from '@/lib/authService';
-import { api } from '@/lib/api';
+import Sidebar from '@/components/Sidebar';
 
 const categories = [
   { title: 'Free food', route: '/FreeFood' },
   { title: 'Free non-food', route: '/FreeNonFood' },
-  // { title: 'For sale', route: '/ForSale' },
-  // { title: 'Wanted', route: '/Wanted' },
 ];
 
 export default function GetStarted() {
-  const { user } = useUser();
-  const { getToken } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const location = 'XYZ';
+  const location = 'Gurugram'; // Updated location
+
   const [userName, setUserName] = useState('Guest');
   const [userEmail, setUserEmail] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isSidebarVisible, setSidebarVisible] = useState(false);
   const [loading, setLoading] = useState(true);
-  const userDataRef = useRef<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
-    console.log('GetStarted useEffect triggered. user:', user, 'params:', params);
-    console.log('Params details:', {
-      userName: params.userName,
-      userEmail: params.userEmail,
-      userId: params.userId,
-      hasParams: !!params.userName
-    });
-    
-    const fetchUserData = async () => {
-      // First check if user data was passed via router params
-      if (params.userName && params.userName !== 'User' && !userDataRef.current) {
-        console.log('✅ User data received via params:', params.userName);
-        const userData = {
-          name: params.userName as string,
-          email: params.userEmail as string || ''
-        };
-        userDataRef.current = userData;
-        setUserName(userData.name);
-        setUserEmail(userData.email);
-        setLoading(false);
-        console.log('✅ Set user data from params and stopped loading');
-        return;
-      }
-      
-      // If we have stored user data, use it
-      if (userDataRef.current && userDataRef.current.name !== 'User') {
-        console.log('✅ Using stored user data:', userDataRef.current);
-        setUserName(userDataRef.current.name);
-        setUserEmail(userDataRef.current.email);
-        setLoading(false);
-        return;
-      }
-      
-      // Try to fetch user data from database using Clerk user ID
-      if (user?.id) {
-        try {
-          console.log('🔍 Fetching user data from database for Clerk ID:', user.id);
-          const result = await api.getUserByClerkId(user.id);
-          console.log('📋 Database result:', result);
-          if (result.success && result.user && result.user.name) {
-            console.log('✅ Found user in database:', result.user);
-            const userData = { name: result.user.name, email: result.user.email };
-            userDataRef.current = userData;
-            setUserName(result.user.name);
-            setUserEmail(result.user.email);
-            setLoading(false);
-            return;
-          }
-        } catch (error) {
-          console.log('Failed to fetch user from database:', error);
-        }
-      }
-      
-      // Fallback to Clerk user data
-      if (user) {
-        const name = user.firstName || user.fullName || user.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
-        const email = user.primaryEmailAddress?.emailAddress || '';
-        console.log('🔍 Clerk user data:', { name, email });
-        const userData = { name, email };
-        userDataRef.current = userData;
-        setUserName(name);
-        setUserEmail(email);
-        setLoading(false);
-        console.log('User loaded from Clerk. Name set to:', name);
-      } else {
-        // If no user data available, don't keep loading forever
-        console.log('No user data available, setting default values');
-        const userData = { name: 'User', email: '' };
-        userDataRef.current = userData;
-        setUserName('User');
-        setUserEmail('');
-        setLoading(false);
-        console.log('✅ Set default values and stopped loading');
-      }
-    };
-    
-    fetchUserData();
-  }, [user, params]);
+    setLoading(true);
+    if (params.userId && params.userName) {
+      setCurrentUserId(params.userId as string);
+      setUserName(params.userName as string);
+      setUserEmail((params.userEmail as string) || '');
+    } else {
+      setCurrentUserId(null);
+      setUserName('Guest');
+      setUserEmail('');
+    }
+    setLoading(false);
+  }, [params]);
 
   if (loading) {
-    console.log('Rendering ActivityIndicator. Loading:', loading, 'user:', user);
     return <ActivityIndicator size="large" color="#fb923c" style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} />;
   }
 
   return (
     <SafeAreaView style={styles.safeContainer}>
+      <Sidebar isVisible={isSidebarVisible} onClose={() => setSidebarVisible(false)} />
+
       {/* ───── HEADER ───── */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.greeting}>Good afternoon, {userName}</Text>
+          <TouchableOpacity style={styles.greetingContainer} onPress={() => setSidebarVisible(true)}>
+            <Entypo name="menu" size={24} color="#000" style={styles.menuIcon} />
+            <Text style={styles.greeting}>Good afternoon, {userName}</Text>
+          </TouchableOpacity>
           <View style={styles.headerIcons}>
-            <Ionicons name="notifications-outline" size={22} color="#000" style={styles.iconGap} />
-            <Entypo name="menu" size={22} color="#000" />
+            <TouchableOpacity onPress={() => router.push('/Notifications' as any)}>
+              <Ionicons name="notifications-outline" size={22} color="#000" />
+            </TouchableOpacity>
           </View>
         </View>
-
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={14} color="#000" />
           <Text style={styles.locationText}>{location}</Text>
         </View>
         <Text style={styles.subtext}>Listings within 5km</Text>
-        {userEmail ? (
-          <Text style={styles.userEmail}>{userEmail}</Text>
-        ) : null}
+        {userEmail ? <Text style={styles.userEmail}>{userEmail}</Text> : null}
       </View>
 
       {/* ───── BODY ───── */}
@@ -147,7 +80,10 @@ export default function GetStarted() {
             <TouchableOpacity
               key={title}
               style={styles.card}
-              onPress={() => router.push(route as any)}
+              onPress={() => router.push({
+                pathname: route,
+                params: { currentUserId: currentUserId }
+              })}
             >
               <Text style={styles.cardText}>{title}</Text>
             </TouchableOpacity>
@@ -161,35 +97,36 @@ export default function GetStarted() {
           <Ionicons name="home-outline" size={22} color="#FF9800" />
           <Text style={styles.tabTextActive}>Home</Text>
         </View>
-
-        <View style={styles.tabItem}>
-        <TouchableOpacity onPress={() => router.push('/Explore')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Explore' as any)}>
           <Ionicons name="search" size={22} color="#000" />
-          </TouchableOpacity>
-
           <Text style={styles.tabText}>Explore</Text>
-        </View>
-
+        </TouchableOpacity>
         <View style={styles.addButtonWrapper}>
-          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/Add')}>
-            <Ionicons name="add" size={24} color="#fff"/>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              if (currentUserId) {
+                router.push({
+                  pathname: '/Add',
+                  params: { userId: currentUserId }
+                });
+              } else {
+                Alert.alert("Please Log In", "You must be logged in to add an item.");
+              }
+            }}
+          >
+            <Ionicons name="add" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.tabText}>Add</Text>
         </View>
-
-        <View style={styles.tabItem}>
-          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/CreditEconomy')}>
-            <Ionicons name="card-outline" size={22} color="#000" />
-            <Text style={styles.tabText}>Community</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.tabItem}>
-          <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Inbox')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/CreditEconomy' as any)}>
+          <Ionicons name="card-outline" size={22} color="#000" />
+          <Text style={styles.tabText}>Community</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Inbox' as any)}>
           <MaterialIcons name="email" size={22} color="#000" />
           <Text style={styles.tabText}>Messages</Text>
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -215,21 +152,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  greetingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuIcon: {
+    marginRight: 12,
+  },
   greeting: {
     fontSize: 20,
     fontWeight: '600',
+    flexShrink: 1,
   },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  iconGap: {
-    marginRight: 14,
-  },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
+    paddingLeft: 36,
   },
   locationText: {
     marginLeft: 4,
@@ -240,12 +184,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#777',
     marginTop: 2,
+    paddingLeft: 36,
   },
   userEmail: {
     fontSize: 11,
     color: '#999',
     marginTop: 4,
     fontStyle: 'italic',
+    paddingLeft: 36,
   },
   body: {
     flex: 1,
@@ -292,6 +238,7 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     alignItems: 'center',
+    justifyContent: 'center',
     flex: 1,
   },
   tabText: {
@@ -316,5 +263,10 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 30,
     marginBottom: 4,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
 });

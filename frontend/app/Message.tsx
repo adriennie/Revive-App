@@ -8,57 +8,53 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '@clerk/clerk-expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
-import moment from 'moment'; // ✅ Added
+import moment from 'moment';
 
-// Define a type for messages
+const API_BASE_URL = 'http://192.168.1.3:3001';
+
 interface MessageType {
   id?: string;
   sender_id: string;
-  receiver_id: string;
-  chat_id: string;
   text: string;
   created_at: string;
-  [key: string]: any; // allow extra fields
 }
 
 export default function Message() {
-  const { user } = useUser();
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
-
-  const { chat_id, receiver_id, sellerName } = useLocalSearchParams<{
+  
+  const { chat_id, sender_id, receiver_id, sellerName } = useLocalSearchParams<{
     chat_id: string;
+    sender_id: string;
     receiver_id: string;
     sellerName: string;
-    itemName: string;
-    itemImageUrl: string;
   }>();
 
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [text, setText] = useState('');
 
   const fetchMessages = async () => {
+    if (!chat_id) return;
     try {
-      const res = await axios.get(`http://localhost:3001/messages/${chat_id}`);
-      setMessages(res.data.messages);
+      const res = await axios.get(`${API_BASE_URL}/api/messages/${chat_id}`);
+      setMessages(res.data.messages || []);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
     }
   };
 
   const sendMessage = async () => {
-    if (!text.trim()) return;
-
+    if (!text.trim() || !sender_id) return;
     try {
-      await axios.post('http://localhost:3001/send-message', {
+      await axios.post(`${API_BASE_URL}/api/send-message`, {
         chat_id,
-        sender_id: user?.id,
-        receiver_id,
+        sender_id: sender_id,
+        receiver_id: receiver_id,
         text,
       });
       setText('');
@@ -70,181 +66,75 @@ export default function Message() {
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(fetchMessages, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [chat_id]);
 
   useEffect(() => {
-    flatListRef.current?.scrollToEnd({ animated: true });
+    if (messages.length > 0) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
   }, [messages]);
 
-  // Group messages by date
-  const groupMessagesByDate = () => {
-    const grouped = messages.reduce((acc, msg) => {
-      const date = moment(msg.created_at).format('YYYY-MM-DD');
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(msg);
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    return Object.entries(grouped).map(([date, msgs]) => ({
-      date,
-      messages: msgs,
-    }));
-  };
-
-  const renderDateLabel = (date: string) => {
-    const label = moment(date).calendar(null, {
-      sameDay: '[Today]',
-      lastDay: '[Yesterday]',
-      lastWeek: 'dddd',
-      sameElse: 'DD MMM YYYY',
-    });
-
+  const renderMessageItem = ({ item: msg }: { item: MessageType }) => {
+    const isSender = msg.sender_id === sender_id;
     return (
-      <View style={styles.dateLabelContainer}>
-        <Text style={styles.dateLabelText}>{label}</Text>
+      <View style={[styles.messageBubble, isSender ? styles.sent : styles.received]}>
+        <Text style={isSender ? styles.sentText : styles.receivedText}>{msg.text}</Text>
+        <Text style={styles.timestamp}>{moment(msg.created_at).format('h:mm A')}</Text>
       </View>
     );
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/Inbox')}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerText}>{sellerName}</Text>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerText}>{sellerName}</Text>
+        </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={groupMessagesByDate()}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <View>
-            {renderDateLabel(item.date)}
-            {item.messages.map((msg: any) => {
-              const isSender = msg.sender_id === user?.id;
-              return (
-                <View
-                  key={msg.id}
-                  style={[
-                    styles.messageBubble,
-                    isSender ? styles.sent : styles.received,
-                  ]}
-                >
-                  <Text style={styles.messageText}>{msg.text}</Text>
-                  <Text style={styles.timestamp}>
-                    {new Date(msg.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-        contentContainerStyle={{ padding: 16 }}
-      />
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          placeholder="Type a message..."
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+          renderItem={renderMessageItem}
+          contentContainerStyle={{ padding: 16 }}
         />
-        <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
-          <Ionicons name="send" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            placeholder="Type a message..."
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+          />
+          <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
+            <Ionicons name="send" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF8E1',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 16,
-    backgroundColor: '#fb923c', // orange top bar
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 12,
-    color: '#fff', // white text
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    marginBottom: 12,
-    padding: 10,
-    borderRadius: 10,
-  },
-  sent: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#fb923c',
-  },
-  received: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#eee',
-  },
-  messageText: {
-    color: '#000',
-    fontSize: 16,
-  },
-  timestamp: {
-    fontSize: 10,
-    marginTop: 4,
-    textAlign: 'right',
-    color: '#444',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    fontSize: 16,
-  },
-  sendButton: {
-    marginLeft: 8,
-    backgroundColor: '#fb923c',
-    borderRadius: 20,
-    padding: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateLabelContainer: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  dateLabelText: {
-    backgroundColor: '#f0c36d',
-    color: '#000',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    fontSize: 12,
-  },
+    container: { flex: 1, backgroundColor: '#FFF8E1' },
+    header: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, backgroundColor: '#fb923c' },
+    headerText: { fontSize: 18, fontWeight: 'bold', marginLeft: 16, color: '#fff' },
+    messageBubble: { maxWidth: '80%', marginBottom: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+    sent: { alignSelf: 'flex-end', backgroundColor: '#fb923c' },
+    received: { alignSelf: 'flex-start', backgroundColor: '#E5E7EB' },
+    sentText: { color: '#fff', fontSize: 16 },
+    receivedText: { color: '#111827', fontSize: 16 },
+    timestamp: { fontSize: 10, marginTop: 4, textAlign: 'right', color: '#F3F4F6' },
+    inputContainer: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
+    input: { flex: 1, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 10 : 8, fontSize: 16 },
+    sendButton: { marginLeft: 8, backgroundColor: '#fb923c', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 });
