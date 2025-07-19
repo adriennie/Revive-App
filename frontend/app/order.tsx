@@ -1,23 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, TouchableOpacity, Alert, SafeAreaView } from 'react-native';
 import { useUser } from '@clerk/clerk-expo';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-
-interface Order {
-  id: string;
-  name: string;
-  description: string;
-  status?: string;
-  created_at: string;
-  image_url?: string;
-}
+import { useRouter } from 'expo-router'; // Import useRouter
 
 const OrdersScreen = () => {
   const { user } = useUser();
+  const router = useRouter(); // Initialize router
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  interface Order {
+    id: string;
+    name: string;
+    description: string;
+    status?: string;
+    created_at: string;
+    image_url?: string;
+  }
 
   const fetchOrders = async () => {
     if (!user?.id) return;
@@ -64,53 +66,77 @@ const OrdersScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Your Orders</Text>
-      {orders.length === 0 ? (
-        <Text style={styles.emptyText}>You have no orders yet.</Text>
-      ) : (
-        <FlatList
-          data={orders}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.orderCard}>
-              {item.image_url ? (
-                <Image source={{ uri: item.image_url }} style={styles.orderImage} />
-              ) : null}
-              <Text style={styles.orderName}>{item.name}</Text>
-              <Text style={styles.orderDesc}>{item.description}</Text>
-              <Text style={styles.orderStatus}>{item.status ? `Status: ${item.status}` : ''}</Text>
-              <Text style={styles.orderDate}>{new Date(item.created_at).toLocaleString()}</Text>
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleDelete(item.id)}
-                  disabled={deletingId === item.id}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#fff" />
-                  <Text style={styles.deleteButtonText}>{deletingId === item.id ? 'Deleting...' : 'Delete'}</Text>
-                </TouchableOpacity>
+    <SafeAreaView style={styles.safeContainer}>
+      {/* Header with back button */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.title}>My Orders</Text>
+        <View style={{ width: 24 }} /> {/* Spacer */}
+      </View>
+
+      <View style={styles.container}>
+        {orders.length === 0 ? (
+          <View style={styles.centered}>
+            <Text style={styles.emptyText}>You have no orders yet.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={orders}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.orderCard}>
+                {item.image_url ? (
+                  <Image source={{ uri: item.image_url }} style={styles.orderImage} />
+                ) : null}
+                <Text style={styles.orderName}>{item.name}</Text>
+                <Text style={styles.orderDesc}>{item.description}</Text>
+                <Text style={styles.orderStatus}>{item.status ? `Status: ${item.status}` : ''}</Text>
+                <Text style={styles.orderDate}>{new Date(item.created_at).toLocaleString()}</Text>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDelete(item.id)}
+                    disabled={deletingId === item.id}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#fff" />
+                    <Text style={styles.deleteButtonText}>{deletingId === item.id ? 'Deleting...' : 'Delete'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
-        />
-      )}
-    </View>
+            )}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#FFF4E5',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FFF8E1',
-    padding: 20,
+    backgroundColor: '#FFF4E5',
+    paddingHorizontal: 16,
   },
   header: {
-    fontSize: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFE0B2',
+    backgroundColor: '#FFF4E5',
+  },
+  title: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#FF9800',
-    marginBottom: 20,
-    textAlign: 'center',
+    color: '#333',
   },
   orderCard: {
     backgroundColor: '#fff',
@@ -173,7 +199,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFF8E1',
+    backgroundColor: '#FFF4E5',
   },
   emptyText: {
     textAlign: 'center',
@@ -183,4 +209,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OrdersScreen; 
+export default OrdersScreen;
