@@ -21,7 +21,7 @@ const categories = [
 export default function GetStarted() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const location = 'Gurugram'; // Updated location
+  const location = 'Gurugram';
 
   const [userName, setUserName] = useState('Guest');
   const [userEmail, setUserEmail] = useState('');
@@ -51,7 +51,6 @@ export default function GetStarted() {
     <SafeAreaView style={styles.safeContainer}>
       <Sidebar isVisible={isSidebarVisible} onClose={() => setSidebarVisible(false)} />
 
-      {/* ───── HEADER ───── */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.greetingContainer} onPress={() => setSidebarVisible(true)}>
@@ -72,7 +71,6 @@ export default function GetStarted() {
         {userEmail ? <Text style={styles.userEmail}>{userEmail}</Text> : null}
       </View>
 
-      {/* ───── BODY ───── */}
       <View style={styles.body}>
         <Text style={styles.sectionTitle}>Explore Categories</Text>
         <View style={styles.grid}>
@@ -91,7 +89,6 @@ export default function GetStarted() {
         </View>
       </View>
 
-      {/* ───── FOOTER / TAB BAR ───── */}
       <View style={styles.tabBar}>
         <View style={styles.tabItem}>
           <Ionicons name="home-outline" size={22} color="#FF9800" />
@@ -123,7 +120,14 @@ export default function GetStarted() {
           <Ionicons name="card-outline" size={22} color="#000" />
           <Text style={styles.tabText}>Community</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Inbox' as any)}>
+        {/* +++ CHANGE: Pass currentUserId to the Inbox screen +++ */}
+        <TouchableOpacity 
+          style={styles.tabItem} 
+          onPress={() => router.push({
+            pathname: '/Inbox',
+            params: { currentUserId: currentUserId }
+          })}
+        >
           <MaterialIcons name="email" size={22} color="#000" />
           <Text style={styles.tabText}>Messages</Text>
         </TouchableOpacity>
@@ -132,141 +136,28 @@ export default function GetStarted() {
   );
 }
 
-const HEADER_BG = '#FFF4E5';
-const ORANGE_LIGHT = '#FFE0B2';
-const PRIMARY_ACC = '#FF9800';
-
+// ... All styles remain the same
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    backgroundColor: HEADER_BG,
-    paddingTop: Platform.OS === 'ios' ? 20 : 10,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  greetingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  menuIcon: {
-    marginRight: 12,
-  },
-  greeting: {
-    fontSize: 20,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    paddingLeft: 36,
-  },
-  locationText: {
-    marginLeft: 4,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  subtext: {
-    fontSize: 12,
-    color: '#777',
-    marginTop: 2,
-    paddingLeft: 36,
-  },
-  userEmail: {
-    fontSize: 11,
-    color: '#999',
-    marginTop: 4,
-    fontStyle: 'italic',
-    paddingLeft: 36,
-  },
-  body: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 16,
-  },
-  card: {
-    width: '48%',
-    paddingVertical: 24,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    backgroundColor: ORANGE_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardText: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: '#333',
-  },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: HEADER_BG,
-    height: 62,
-    borderTopWidth: 1,
-    borderColor: '#DDD',
-    paddingBottom: Platform.OS === 'ios' ? 10 : 6,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  tabText: {
-    fontSize: 11,
-    color: '#333',
-    marginTop: 2,
-  },
-  tabTextActive: {
-    fontSize: 11,
-    color: PRIMARY_ACC,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  addButtonWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -24,
-    flex: 1,
-  },
-  addButton: {
-    backgroundColor: PRIMARY_ACC,
-    padding: 14,
-    borderRadius: 30,
-    marginBottom: 4,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
+  safeContainer: { flex: 1, backgroundColor: '#FFFFFF' },
+  header: { backgroundColor: '#FFF4E5', paddingTop: Platform.OS === 'ios' ? 20 : 10, paddingHorizontal: 20, paddingBottom: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  greetingContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  menuIcon: { marginRight: 12 },
+  greeting: { fontSize: 20, fontWeight: '600', flexShrink: 1 },
+  headerIcons: { flexDirection: 'row', alignItems: 'center' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingLeft: 36 },
+  locationText: { marginLeft: 4, fontSize: 15, fontWeight: '500' },
+  subtext: { fontSize: 12, color: '#777', marginTop: 2, paddingLeft: 36 },
+  userEmail: { fontSize: 11, color: '#999', marginTop: 4, fontStyle: 'italic', paddingLeft: 36 },
+  body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#333' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 },
+  card: { width: '48%', paddingVertical: 24, paddingHorizontal: 12, borderRadius: 12, marginBottom: 12, backgroundColor: '#FFE0B2', alignItems: 'center', justifyContent: 'center' },
+  cardText: { fontSize: 16, fontWeight: '600', textAlign: 'center', color: '#333' },
+  tabBar: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: '#FFF4E5', height: 62, borderTopWidth: 1, borderColor: '#DDD', paddingBottom: Platform.OS === 'ios' ? 10 : 6 },
+  tabItem: { alignItems: 'center', justifyContent: 'center', flex: 1 },
+  tabText: { fontSize: 11, color: '#333', marginTop: 2 },
+  tabTextActive: { fontSize: 11, color: '#FF9800', fontWeight: 'bold', marginTop: 2 },
+  addButtonWrapper: { alignItems: 'center', justifyContent: 'center', marginTop: -24, flex: 1 },
+  addButton: { backgroundColor: '#FF9800', padding: 14, borderRadius: 30, marginBottom: 4, elevation: 4, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
 });
