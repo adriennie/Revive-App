@@ -8,7 +8,7 @@ import { CaptchaFallback } from '../components/CaptchaFallback';
 export default function RootLayout() {
   return (
     <ClerkProvider 
-      publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      publishableKey="pk_test_bG95YWwtZHVjay01Mi5jbGVyay5hY2NvdW50cy5kZXYk"
       appearance={{
         elements: {
           formButtonPrimary: {
@@ -21,7 +21,7 @@ export default function RootLayout() {
       }}
       signInUrl="/login"
       signUpUrl="/sign-up"
-      afterSignInUrl="/GetStarted"
+      signInFallbackRedirectUrl="/GetStarted"
       afterSignUpUrl="/login"
     >
       <CaptchaFallback />
@@ -38,12 +38,11 @@ export default function RootLayout() {
           <Stack.Screen name="Wanted" />
           <Stack.Screen name="Explore" />
           <Stack.Screen name="Message" />
-          <Stack.Screen name="Community" />
           <Stack.Screen name="Chat" />
           <Stack.Screen name="ProductScreen" />
           
           {/* Main Tab Screens */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* <Stack.Screen name="(tabs)" options={{ headerShown: false }} /> */}
         </Stack>
       </SafeAreaProvider>
     </ClerkProvider>

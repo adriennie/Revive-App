@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { AuthService } from '@/lib/authService';
 import { api } from '@/lib/api';
@@ -24,61 +25,97 @@ export default function GetStarted() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const location = 'XYZ';
   const [userName, setUserName] = useState('Guest');
+  const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
+  const userDataRef = useRef<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      setLoading(true);
-      let clerkId = null;
-
-      if (user) {
-        setUserName(user.firstName || user.fullName || 'User');
+    console.log('GetStarted useEffect triggered. user:', user, 'params:', params);
+    console.log('Params details:', {
+      userName: params.userName,
+      userEmail: params.userEmail,
+      userId: params.userId,
+      hasParams: !!params.userName
+    });
+    
+    const fetchUserData = async () => {
+      // First check if user data was passed via router params
+      if (params.userName && params.userName !== 'User' && !userDataRef.current) {
+        console.log('✅ User data received via params:', params.userName);
+        const userData = {
+          name: params.userName as string,
+          email: params.userEmail as string || ''
+        };
+        userDataRef.current = userData;
+        setUserName(userData.name);
+        setUserEmail(userData.email);
+        setLoading(false);
+        console.log('✅ Set user data from params and stopped loading');
+        return;
+      }
+      
+      // If we have stored user data, use it
+      if (userDataRef.current && userDataRef.current.name !== 'User') {
+        console.log('✅ Using stored user data:', userDataRef.current);
+        setUserName(userDataRef.current.name);
+        setUserEmail(userDataRef.current.email);
         setLoading(false);
         return;
       }
-
-      // Try to get Clerk ID from token or session
-      try {
-        const token = await getToken();
-        if (token) {
-          // Fetch Clerk user info from API
-          const res = await fetch('https://api.clerk.dev/v1/me', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            clerkId = data.id;
-            console.log('Clerk ID used for DB lookup:', clerkId);
-          }
-        }
-      } catch (e) {
-        console.log('Failed to fetch Clerk user from API:', e);
-      }
-
-      // If we have a Clerk ID, fetch user from our DB
-      if (clerkId) {
+      
+      // Try to fetch user data from database using Clerk user ID
+      if (user?.id) {
         try {
-          const dbRes = await api.getUserByClerkId(clerkId);
-          console.log('DB response:', dbRes);
-          if (dbRes.success && dbRes.user) {
-            setUserName(dbRes.user.name || 'User');
+          console.log('🔍 Fetching user data from database for Clerk ID:', user.id);
+          const result = await api.getUserByClerkId(user.id);
+          console.log('📋 Database result:', result);
+          if (result.success && result.user && result.user.name) {
+            console.log('✅ Found user in database:', result.user);
+            const userData = { name: result.user.name, email: result.user.email };
+            userDataRef.current = userData;
+            setUserName(result.user.name);
+            setUserEmail(result.user.email);
             setLoading(false);
             return;
           }
-        } catch (e) {
-          console.log('Failed to fetch user from DB:', e);
+        } catch (error) {
+          console.log('Failed to fetch user from database:', error);
         }
       }
-
-      setLoading(false);
+      
+      // Fallback to Clerk user data
+      if (user) {
+        const name = user.firstName || user.fullName || user.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
+        const email = user.primaryEmailAddress?.emailAddress || '';
+        console.log('🔍 Clerk user data:', { name, email });
+        const userData = { name, email };
+        userDataRef.current = userData;
+        setUserName(name);
+        setUserEmail(email);
+        setLoading(false);
+        console.log('User loaded from Clerk. Name set to:', name);
+      } else {
+        // If no user data available, don't keep loading forever
+        console.log('No user data available, setting default values');
+        const userData = { name: 'User', email: '' };
+        userDataRef.current = userData;
+        setUserName('User');
+        setUserEmail('');
+        setLoading(false);
+        console.log('✅ Set default values and stopped loading');
+      }
     };
+    
+    fetchUserData();
+  }, [user, params]);
 
-    fetchUser();
-  }, [user, getToken]);
-
-  if (loading) return null;
+  if (loading) {
+    console.log('Rendering ActivityIndicator. Loading:', loading, 'user:', user);
+    return <ActivityIndicator size="large" color="#fb923c" style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} />;
+  }
 
   return (
     <SafeAreaView style={styles.safeContainer}>
@@ -97,6 +134,9 @@ export default function GetStarted() {
           <Text style={styles.locationText}>{location}</Text>
         </View>
         <Text style={styles.subtext}>Listings within 5km</Text>
+        {userEmail ? (
+          <Text style={styles.userEmail}>{userEmail}</Text>
+        ) : null}
       </View>
 
       {/* ───── BODY ───── */}
@@ -200,6 +240,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#777',
     marginTop: 2,
+  },
+  userEmail: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   body: {
     flex: 1,

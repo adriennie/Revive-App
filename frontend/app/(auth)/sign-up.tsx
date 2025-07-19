@@ -85,11 +85,11 @@ export default function SignUp() {
                 onPress: () => {
                   console.log('🔄 Redirecting to sign-in screen...');
                   try {
-                    router.replace('./login');
+                    router.replace('/(auth)/login');
                   } catch (navError) {
                     console.error('Navigation error:', navError);
                     // Fallback navigation
-                    window.location.href = '/login';
+                    window.location.href = '/(auth)/login';
                   }
                 }
               }
@@ -148,7 +148,7 @@ export default function SignUp() {
       }
     } finally {
       setPending(false);
-      console.log('🏁 Registration process completed');
+      console.log('Registration process ended');
     }
   };
 
@@ -171,7 +171,7 @@ export default function SignUp() {
                 <Button
                   mode="contained"
                   style={styles.successBtn}
-                  onPress={() => router.replace('./login')}
+                  onPress={() => router.replace('/(auth)/login')}
                 >
                   Go to Login
                 </Button>

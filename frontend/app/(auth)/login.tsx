@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { Text, Button, Card, TextInput } from 'react-native-paper';
 import { useOAuth, useSignIn, useUser } from '@clerk/clerk-expo';
+import type { UserResource } from '@clerk/types';
+
 import { useRouter } from 'expo-router';
 import { api } from '@/lib/api';
 import { AuthService } from '@/lib/authService';
@@ -19,73 +21,288 @@ export default function Login() {
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   const { signIn, isLoaded: signInLoaded } = useSignIn();
   const { isLoaded: userLoaded, isSignedIn, user } = useUser();
-  const { getToken, signOut, isSignedIn: isClerkSignedIn } = useAuth();
+  const { getToken, signOut, isSignedIn: isClerkSignedIn} = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [googleOAuthCompleted, setGoogleOAuthCompleted] = useState(false);
+  const [oauthResult, setOauthResult] = useState<any>(null);
 
-  // Watch for user changes after Google OAuth
-  useEffect(() => {
-    if (googleOAuthCompleted && user && isSignedIn) {
-      console.log('🎉 Google OAuth user detected:', user);
-      
-      // Create session for Google OAuth user
-      const googleUserName = user.firstName || 
-                           user.fullName || 
-                           user.primaryEmailAddress?.emailAddress?.split('@')[0] || 
-                           'User';
-      const googleUserEmail = user.primaryEmailAddress?.emailAddress || '';
-      const googleUserId = user.id || `google_${Date.now()}`;
-      
-      const googleSession = {
-        id: googleUserId,
-        name: googleUserName,
-        email: googleUserEmail,
-        isAuthenticated: true
-      };
-      
-      console.log('💾 Creating session for Google OAuth user:', googleSession);
-      
-      AuthService.storeSession(googleSession).then(() => {
-        console.log('🔄 Redirecting to GetStarted after Google OAuth session creation...');
-        router.replace('/GetStarted');
-        setGoogleOAuthCompleted(false); // Reset flag
-      });
+  // Helper to upsert user in DB from Clerk user
+  async function upsertUserFromClerk(clerkUser: UserResource | null) {
+    if (!clerkUser) {
+      console.log('❌ No clerk user provided to upsertUserFromClerk');
+      return;
     }
+    
+    console.log('🔍 Upserting user from Clerk:', clerkUser);
+    
+    const userData = {
+      clerk_user_id: clerkUser.id,
+      name: clerkUser.firstName || clerkUser.fullName || clerkUser.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User',
+      email: clerkUser.primaryEmailAddress?.emailAddress || '',
+      photo_url: clerkUser.imageUrl || null,
+      phone_number: clerkUser.phoneNumbers?.[0]?.phoneNumber || null,
+    };
+    
+    console.log('📝 User data to save:', userData);
+    
+    try {
+      // First try to get existing user
+      const existingUser = await api.getUserByClerkId(clerkUser.id);
+      
+      if (existingUser.success && existingUser.user) {
+        console.log('✅ User already exists in DB:', existingUser.user);
+        // User exists, we could update if needed
+        return existingUser.user;
+      } else {
+        // User doesn't exist, create new user
+        console.log('🆕 Creating new user in DB...');
+        const result = await api.createUser(userData);
+        if (result.success) {
+          console.log('✅ User created in DB:', result.user);
+          return result.user;
+        } else {
+          console.error('❌ Failed to create user in DB:', result.error);
+        }
+      }
+    } catch (e) {
+      console.error('💥 Failed to upsert user in DB:', e);
+    }
+  }
+
+  // Watch for user changes after Google OAuth (fallback)
+  useEffect(() => {
+    const handleGoogleOAuthUser = async () => {
+      if (googleOAuthCompleted && user && isSignedIn) {
+        console.log('🎉 Google OAuth user detected in useEffect:', user);
+        
+        // Extract user data directly without async operations
+        const googleUserName = (user as any).firstName || 
+                             (user as any).fullName || 
+                             (user as any).primaryEmailAddress?.emailAddress?.split('@')[0] || 
+                             'User';
+        const googleUserEmail = (user as any).primaryEmailAddress?.emailAddress || '';
+        const googleUserId = (user as any).id || `google_${Date.now()}`;
+        
+        console.log('✅ Extracted user data from Clerk:', { googleUserName, googleUserEmail, googleUserId });
+        
+        // Save user to database first
+        try {
+          console.log('💾 Saving user to database (fallback)...');
+          const userData = {
+            clerk_user_id: googleUserId,
+            name: googleUserName,
+            email: googleUserEmail,
+            photo_url: (user as any).imageUrl || null,
+            phone_number: (user as any).phoneNumbers?.[0]?.phoneNumber || null,
+          };
+          
+          const dbResult = await api.createUser(userData);
+          if (dbResult.success) {
+            console.log('✅ User saved to database (fallback):', dbResult.user);
+          } else {
+            console.error('❌ Failed to save user to database (fallback):', dbResult.error);
+          }
+        } catch (error) {
+          console.error('💥 Error saving user to database (fallback):', error);
+        }
+        
+        // Create session for Google OAuth user
+        const googleSession = {
+          id: googleUserId,
+          name: googleUserName,
+          email: googleUserEmail,
+          isAuthenticated: true
+        };
+        
+        console.log('💾 Creating session for Google OAuth user (fallback):', googleSession);
+        
+        // Store session and redirect
+        AuthService.storeSession(googleSession).then(() => {
+          console.log('🔄 Redirecting to GetStarted after Google OAuth session creation (fallback)...');
+          router.replace({
+            pathname: '/GetStarted',
+            params: { 
+              userName: googleUserName,
+              userEmail: googleUserEmail,
+              userId: googleUserId
+            }
+          });
+          setGoogleOAuthCompleted(false); // Reset flag
+        }).catch(error => {
+          console.error('❌ Failed to store session:', error);
+          // Still redirect even if session storage fails
+          router.replace({
+            pathname: '/GetStarted',
+            params: { 
+              userName: googleUserName,
+              userEmail: googleUserEmail,
+              userId: googleUserId
+            }
+          });
+          setGoogleOAuthCompleted(false);
+        });
+      }
+    };
+    
+    handleGoogleOAuthUser();
   }, [googleOAuthCompleted, user, isSignedIn]);
 
   // Redirect if already signed in
   useEffect(() => {
     if (userLoaded && isSignedIn) {
       console.log('🔄 User already signed in, redirecting to GetStarted...');
-      router.replace('/GetStarted');
+      const userName = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
+      const userEmail = user?.primaryEmailAddress?.emailAddress || '';
+      const userId = user?.id || '';
+      router.replace({
+        pathname: '/GetStarted',
+        params: { 
+          userName,
+          userEmail,
+          userId
+        }
+      });
     }
-  }, [userLoaded, isSignedIn]);
+  }, [userLoaded, isSignedIn, user]);
 
   const handleGoogleLogin = async () => {
+    if (isSignedIn) {
+      const userName = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
+      const userEmail = user?.primaryEmailAddress?.emailAddress || '';
+      const userId = user?.id || '';
+      router.replace({
+        pathname: '/GetStarted',
+        params: { 
+          userName,
+          userEmail,
+          userId
+        }
+      });
+      return;
+    }
     try {
       setPending(true);
       console.log('🚀 Starting Google OAuth login process...');
-      
       const { createdSessionId, signIn, signUp } = await startOAuthFlow();
-      
       console.log('✅ Google OAuth result:', { 
         createdSessionId: !!createdSessionId,
         signIn: !!signIn,
         signUp: !!signUp
       });
-
+      
+      // Log detailed OAuth result for debugging
+      console.log('🔍 Detailed OAuth result:', {
+        signIn: signIn ? {
+          hasUser: !!(signIn as any).user,
+          userData: (signIn as any).user ? {
+            firstName: (signIn as any).user?.firstName,
+            fullName: (signIn as any).user?.fullName,
+            email: (signIn as any).user?.primaryEmailAddress?.emailAddress
+          } : null
+        } : null,
+        signUp: signUp ? {
+          hasUser: !!(signUp as any).user,
+          userData: (signUp as any).user ? {
+            firstName: (signUp as any).user?.firstName,
+            fullName: (signUp as any).user?.fullName,
+            email: (signUp as any).user?.primaryEmailAddress?.emailAddress
+          } : null
+        } : null
+      });
+      
+      // Store OAuth result for fallback use
+      setOauthResult({ signIn, signUp });
+      
       if (createdSessionId) {
+        console.log('✅ Google OAuth session created, getting user data...');
+        // Get the current user immediately after OAuth
+        const currentUser = await getToken();
+        console.log('🔍 Current user token:', currentUser ? 'available' : 'not available');
+        
         // Wait a moment for Clerk to update the user state
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Log the Clerk user ID if available
-        if (user && user.id) {
-          console.log('Clerk user ID after Google OAuth:', user.id);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Try to get user data from Clerk
+        if (user) {
+          console.log('✅ User data available immediately:', user);
+          const googleUserName = (user as any).firstName || 
+                               (user as any).fullName || 
+                               (user as any).primaryEmailAddress?.emailAddress?.split('@')[0] || 
+                               'User';
+          const googleUserEmail = (user as any).primaryEmailAddress?.emailAddress || '';
+          const googleUserId = (user as any).id || `google_${Date.now()}`;
+          
+          console.log('🔍 Extracted user data from Clerk:', { googleUserName, googleUserEmail, googleUserId });
+          
+          // Save user to database
+          try {
+            console.log('💾 Attempting to save user to database...');
+            const userData = {
+              clerk_user_id: googleUserId,
+              name: googleUserName,
+              email: googleUserEmail,
+              photo_url: (user as any).imageUrl || null,
+              phone_number: (user as any).phoneNumbers?.[0]?.phoneNumber || null,
+            };
+            
+            console.log('📝 User data to save:', userData);
+            console.log('🌐 Making API call to:', 'http://localhost:3001/api/users');
+            const dbResult = await api.createUser(userData);
+            console.log('📋 Database result:', dbResult);
+            
+            if (dbResult.success) {
+              console.log('✅ User successfully saved to database:', dbResult.user);
+            } else {
+              console.error('❌ Failed to save user to database:', dbResult.error);
+            }
+          } catch (error) {
+            console.error('💥 Error saving user to database:', error);
+            console.error('💥 Error details:', {
+              message: error.message,
+              response: error.response?.data,
+              status: error.response?.status
+            });
+          }
+          
+          // Create session for Google OAuth user
+          const googleSession = {
+            id: googleUserId,
+            name: googleUserName,
+            email: googleUserEmail,
+            isAuthenticated: true
+          };
+          
+          console.log('💾 Creating session for Google OAuth user:', googleSession);
+          
+          // Store session and redirect
+          AuthService.storeSession(googleSession).then(() => {
+            console.log('🔄 Redirecting to GetStarted after Google OAuth session creation...');
+            router.replace({
+              pathname: '/GetStarted',
+              params: { 
+                userName: googleUserName,
+                userEmail: googleUserEmail,
+                userId: googleUserId
+              }
+            });
+          }).catch(error => {
+            console.error('❌ Failed to store session:', error);
+            // Still redirect even if session storage fails
+            router.replace({
+              pathname: '/GetStarted',
+              params: { 
+                userName: googleUserName,
+                userEmail: googleUserEmail,
+                userId: googleUserId
+              }
+            });
+          });
         } else {
-          console.log('Clerk user ID not available after Google OAuth.');
+          console.log('⏳ User not available yet, setting flag for useEffect...');
+          setGoogleOAuthCompleted(true);
         }
       }
     } catch (err) {
@@ -130,7 +347,14 @@ export default function Login() {
             {
               text: 'Continue',
               onPress: () => {
-                router.replace('/GetStarted');
+                router.replace({
+                  pathname: '/GetStarted',
+                  params: { 
+                    userName: authResult.user.name,
+                    userEmail: authResult.user.email,
+                    userId: authResult.user.id
+                  }
+                });
               }
             }
           ]
@@ -156,9 +380,23 @@ export default function Login() {
       
       if (result.status === 'complete') {
         console.log('✅ Manual login successful');
+        // Upsert user in DB from Clerk user
+        if (user) {
+          upsertUserFromClerk(user);
+        }
         console.log('🔄 Redirecting to GetStarted after manual login...');
         // Session should be active after manual login, just redirect
-        router.replace('/GetStarted');
+        const userName = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
+        const userEmail = user?.primaryEmailAddress?.emailAddress || '';
+        const userId = user?.id || '';
+        router.replace({
+          pathname: '/GetStarted',
+          params: { 
+            userName,
+            userEmail,
+            userId
+          }
+        });
       } else {
         console.error('❌ Manual login not completed:', result.status);
         Alert.alert('Error', 'Login not completed.');
@@ -219,7 +457,7 @@ export default function Login() {
     }
   };
 
-  if (!signInLoaded || !userLoaded || isSignedIn) return null;
+  if (!signInLoaded || !userLoaded) return null;
 
   return (
     <ImageBackground
