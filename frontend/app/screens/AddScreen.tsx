@@ -16,10 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { decode } from 'base64-arraybuffer';
 
 export default function AddItemScreen() {
+  // Get navigation parameters, including the userId passed from GetStarted
+  const params = useLocalSearchParams();
+  
   const [isFood, setIsFood] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -68,6 +71,14 @@ export default function AddItemScreen() {
   };
 
   const handleSubmit = async () => {
+    const { userId } = params;
+
+    // Add a check to ensure the userId was passed correctly
+    if (!userId) {
+      Alert.alert('Error', 'Could not identify the user. Please go back and try again.');
+      return;
+    }
+
     if (!name || !description || !category || !condition || !location || !price) {
       Alert.alert('Error', 'Please fill out all required fields.');
       return;
@@ -80,7 +91,7 @@ export default function AddItemScreen() {
       if (imageUrl) {
         console.log('Starting image upload process...');
         const base64 = await FileSystem.readAsStringAsync(imageUrl, { encoding: FileSystem.EncodingType.Base64 });
-        const fileExt = 'jpg'; // or 'png'
+        const fileExt = 'jpg';
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = fileName;
         console.log('Uploading to Supabase Storage:', filePath);
@@ -89,7 +100,7 @@ export default function AddItemScreen() {
           .storage
           .from('item-images')
           .upload(filePath, decode(base64), {
-            contentType: 'image/jpeg', // or 'image/png'
+            contentType: 'image/jpeg',
             upsert: true,
           });
 
@@ -99,7 +110,6 @@ export default function AddItemScreen() {
         }
         console.log('Image uploaded successfully:', uploadData);
 
-        // Get the public URL
         const { data: publicUrlData } = supabase
           .storage
           .from('item-images')
@@ -112,7 +122,6 @@ export default function AddItemScreen() {
         publicImageUrl = publicUrlData?.publicUrl;
       }
 
-     
       const itemData = {
         name,
         price: parseFloat(price),
@@ -123,6 +132,8 @@ export default function AddItemScreen() {
         type: isFood ? 'food' : 'sale',
         image_url: publicImageUrl,
         age_minutes: isFood ? parseInt(age, 10) || null : null,
+        // Use the userId from params
+        user_id: userId,
       };
       console.log('Inserting item data into Supabase:', itemData);
 

@@ -158,6 +158,10 @@ app.get('/api/messages/:chatId', async (req, res) => {
   }
 });
 
+app.get('/api/create', async (req, res) => {
+res.send("Welcome to the ReVive Backend API! Use the endpoints to manage users, credits, messages, and orders.");
+})
+
 app.post('/api/create-chat', async (req, res) => {
   try {
     const { chat_id, sender_id, receiver_id, item_name, receiver_name } = req.body;
@@ -229,13 +233,57 @@ app.get('/api/inbox/:userId', async (req, res) => {
     });
   }
 });
+app.post('/orders/new', async (req, res) => {
+  try {
+    const { current_user_id, item_id, owner_user_id, timestamp, status } = req.body;
+
+    // Validate the incoming data
+    if (!current_user_id || !item_id || !owner_user_id || typeof status !== 'boolean') {
+      return res.status(400).json({ 
+        error: 'Missing required fields for order creation' 
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('orders') // Assumes you have a table named 'orders'
+      .insert([{
+        requester_id: current_user_id,
+        item_id: item_id,
+        owner_id: owner_user_id,
+        created_at: timestamp, // Using the timestamp from the client
+        status: status,
+      }])
+      .select(); // Return the newly created order
+
+    if (error) {
+      console.error('Supabase order insert error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to create order', 
+        supabaseError: error 
+      });
+    }
+
+    // Return a 201 Created status for successful creation
+    return res.status(201).json({ 
+      success: true, 
+      order: data[0] 
+    });
+    
+  } catch (error) {
+    console.error('Server error creating order:', error);
+    return res.status(500).json({ 
+      error: 'Unexpected server error' 
+    });
+  }
+});
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     message: 'ReVive Backend Server is running',
-    modules: ['User Management', 'Credit System', 'Messaging']
+    modules: ['User Management', 'Credit System', 'Messaging', 'Orders'] // Added Orders module
   });
 });
 
@@ -247,5 +295,6 @@ app.listen(PORT, () => {
   console.log("   👤 User Management: /api/users");
   console.log("   💰 Credit System: /api/transfer, /api/transactions/:userId");
   console.log("   💬 Messaging: /api/send-message, /api/messages/:chatId, /api/create-chat, /api/inbox/:userId");
+  console.log("   🛒 Orders: /api/orders/new"); // Added Orders endpoint to startup message
   console.log("   🏥 Health Check: /health");
-}); 
+});

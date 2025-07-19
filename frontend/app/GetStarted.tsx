@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,92 +7,41 @@ import {
   SafeAreaView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialIcons, Entypo } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAuth, useUser } from '@clerk/clerk-expo';
-import { api } from '@/lib/api';
-import Sidebar from '@/components/Sidebar'; // Using your new Sidebar component
+import Sidebar from '@/components/Sidebar';
 
 const categories = [
   { title: 'Free food', route: '/FreeFood' },
   { title: 'Free non-food', route: '/FreeNonFood' },
-  // { title: 'For sale', route: '/ForSale' },
-  // { title: 'Wanted', route: '/Wanted' },
 ];
 
 export default function GetStarted() {
-  const { user } = useUser();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const location = 'XYZ';
+  const location = 'Gurugram'; // Updated location
+
   const [userName, setUserName] = useState('Guest');
   const [userEmail, setUserEmail] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isSidebarVisible, setSidebarVisible] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isSidebarVisible, setSidebarVisible] = useState(false); // State for your sidebar
-  const userDataRef = useRef<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      // First check if user data was passed via router params
-      if (params.userName && params.userName !== 'User' && !userDataRef.current) {
-        const userData = {
-          name: params.userName as string,
-          email: (params.userEmail as string) || '',
-        };
-        userDataRef.current = userData;
-        setUserName(userData.name);
-        setUserEmail(userData.email);
-        setLoading(false);
-        return;
-      }
-
-      // If we have stored user data, use it
-      if (userDataRef.current && userDataRef.current.name !== 'User') {
-        setUserName(userDataRef.current.name);
-        setUserEmail(userDataRef.current.email);
-        setLoading(false);
-        return;
-      }
-
-      // Try to fetch user data from database using Clerk user ID
-      if (user?.id) {
-        try {
-          const result = await api.getUserByClerkId(user.id);
-          if (result.success && result.user && result.user.name) {
-            const userData = { name: result.user.name, email: result.user.email };
-            userDataRef.current = userData;
-            setUserName(result.user.name);
-            setUserEmail(result.user.email);
-            setLoading(false);
-            return;
-          }
-        } catch (error) {
-          console.log('Failed to fetch user from database:', error);
-        }
-      }
-
-      // Fallback to Clerk user data
-      if (user) {
-        const name = user.fullName || user.firstName || user.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
-        const email = user.primaryEmailAddress?.emailAddress || '';
-        const userData = { name, email };
-        userDataRef.current = userData;
-        setUserName(name);
-        setUserEmail(email);
-        setLoading(false);
-      } else {
-        // If no user data available, don't keep loading forever
-        const userData = { name: 'User', email: '' };
-        userDataRef.current = userData;
-        setUserName('User');
-        setUserEmail('');
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [user, params]);
+    setLoading(true);
+    if (params.userId && params.userName) {
+      setCurrentUserId(params.userId as string);
+      setUserName(params.userName as string);
+      setUserEmail((params.userEmail as string) || '');
+    } else {
+      setCurrentUserId(null);
+      setUserName('Guest');
+      setUserEmail('');
+    }
+    setLoading(false);
+  }, [params]);
 
   if (loading) {
     return <ActivityIndicator size="large" color="#fb923c" style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} />;
@@ -100,7 +49,6 @@ export default function GetStarted() {
 
   return (
     <SafeAreaView style={styles.safeContainer}>
-      {/* Your new Sidebar is rendered here and controlled by isSidebarVisible state */}
       <Sidebar isVisible={isSidebarVisible} onClose={() => setSidebarVisible(false)} />
 
       {/* ───── HEADER ───── */}
@@ -116,7 +64,6 @@ export default function GetStarted() {
             </TouchableOpacity>
           </View>
         </View>
-
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={14} color="#000" />
           <Text style={styles.locationText}>{location}</Text>
@@ -133,7 +80,10 @@ export default function GetStarted() {
             <TouchableOpacity
               key={title}
               style={styles.card}
-              onPress={() => router.push(route as any)}
+              onPress={() => router.push({
+                pathname: route,
+                params: { currentUserId: currentUserId }
+              })}
             >
               <Text style={styles.cardText}>{title}</Text>
             </TouchableOpacity>
@@ -147,24 +97,32 @@ export default function GetStarted() {
           <Ionicons name="home-outline" size={22} color="#FF9800" />
           <Text style={styles.tabTextActive}>Home</Text>
         </View>
-
         <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Explore' as any)}>
           <Ionicons name="search" size={22} color="#000" />
           <Text style={styles.tabText}>Explore</Text>
         </TouchableOpacity>
-
         <View style={styles.addButtonWrapper}>
-          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/Add' as any)}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              if (currentUserId) {
+                router.push({
+                  pathname: '/Add',
+                  params: { userId: currentUserId }
+                });
+              } else {
+                Alert.alert("Please Log In", "You must be logged in to add an item.");
+              }
+            }}
+          >
             <Ionicons name="add" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.tabText}>Add</Text>
         </View>
-
         <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/CreditEconomy' as any)}>
           <Ionicons name="card-outline" size={22} color="#000" />
           <Text style={styles.tabText}>Community</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.tabItem} onPress={() => router.push('/Inbox' as any)}>
           <MaterialIcons name="email" size={22} color="#000" />
           <Text style={styles.tabText}>Messages</Text>
@@ -205,7 +163,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 20,
     fontWeight: '600',
-    flexShrink: 1, 
+    flexShrink: 1,
   },
   headerIcons: {
     flexDirection: 'row',
@@ -215,7 +173,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
-    paddingLeft: 36, 
+    paddingLeft: 36,
   },
   locationText: {
     marginLeft: 4,
@@ -226,14 +184,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#777',
     marginTop: 2,
-    paddingLeft: 36, 
+    paddingLeft: 36,
   },
   userEmail: {
     fontSize: 11,
     color: '#999',
     marginTop: 4,
     fontStyle: 'italic',
-    paddingLeft: 36, 
+    paddingLeft: 36,
   },
   body: {
     flex: 1,
