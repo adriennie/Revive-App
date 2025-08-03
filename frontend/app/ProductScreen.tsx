@@ -5,12 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://192.168.1.3:3001'; 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001'; 
 
 export default function ProductScreen() {
   const router = useRouter();
   // Get both the product ID (renamed to itemId for clarity) and the current user's ID
-  const { id: itemId, currentUserId } = useLocalSearchParams<{ id: string, currentUserId: string }>();
+  const { id: itemId, currentUserId, currentUserName } = useLocalSearchParams<{ id: string, currentUserId: string, currentUserName: string }>();
   
   const [product, setProduct] = useState<any>(null);
   const [owner, setOwner] = useState<any>(null); // The item's owner
@@ -84,27 +84,52 @@ export default function ProductScreen() {
   }
 
   const handleExpressInterest = async () => {
-    if (!currentUserId || !product) {
-      Alert.alert('Error', 'Cannot express interest. Your user ID is missing.');
+    if (!currentUserId || !product || !owner) {
+      Alert.alert('Error', 'Cannot express interest. Missing user or product information.');
       return;
     }
     
     setIsSubmitting(true);
 
-    const orderPayload = {
-      current_user_id: currentUserId,
-      item_id: product.id,
-      owner_user_id: product.user_id,
-      timestamp: new Date().toISOString(),
-      status: false,
-    };
-
     try {
-      await axios.post(`${API_BASE_URL}/orders/new`, orderPayload);
-      Alert.alert('Success!', 'Your interest has been registered.');
-    } catch (error) {
-      console.error('Failed to express interest:', error);
-      Alert.alert('Error', 'Could not register your interest.');
+      console.log('🔄 Expressing interest in product:', product.id);
+      console.log('📊 Current user ID:', currentUserId);
+      console.log('📊 Owner ID:', owner.id);
+      
+      const orderPayload = {
+        requester_id: currentUserId,
+        item_id: product.id,
+        owner_id: owner.id,
+        item_name: product.name,
+        requester_name: currentUserName || 'User', // Use currentUserName if available, otherwise 'User'
+        owner_name: owner.name, // Add owner name
+      };
+
+      console.log('📦 Order payload:', orderPayload);
+
+      const response = await axios.post(`${API_BASE_URL}/api/orders`, orderPayload);
+      
+      console.log('✅ Order created successfully:', response.data);
+      
+      Alert.alert(
+        'Success!', 
+        'Your interest has been sent to the owner. You will be notified when they respond.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back()
+          }
+        ]
+      );
+    } catch (error: any) {
+      console.error('❌ Failed to express interest:', error);
+      
+      let errorMessage = 'Could not register your interest.';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
     }

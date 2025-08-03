@@ -22,6 +22,21 @@ export class AuthService {
         
         if (user) {
           console.log('✅ [AuthService] User found:', user);
+          
+          // Give initial credits if user doesn't have any
+          try {
+            const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+            await fetch(`${API_BASE_URL}/api/users/${user.id}/give-initial-credits`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            console.log('✅ [AuthService] Initial credits check completed');
+          } catch (creditError) {
+            console.log('⚠️ [AuthService] Could not check/give initial credits:', creditError);
+          }
+          
           return {
             success: true,
             user: user

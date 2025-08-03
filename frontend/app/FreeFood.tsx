@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 
 const { width } = Dimensions.get('window');
@@ -34,6 +34,10 @@ interface Item {
 }
 
 const FreeFood: FC = () => {
+  const params = useLocalSearchParams();
+  const currentUserId = params.currentUserId as string;
+  const currentUserName = params.currentUserName as string;
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [showPopular, setShowPopular] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -75,7 +79,7 @@ const FreeFood: FC = () => {
   const renderItem = ({ item }: { item: Item }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push({ pathname: '/ProductScreen', params: { id: item.id } })}
+      onPress={() => router.push({ pathname: '/ProductScreen', params: { id: item.id, currentUserId: currentUserId, currentUserName: currentUserName } })}
     >
       <Image source={{ uri: item.image_url }} style={styles.cardImage} />
       <View style={styles.cardContent}>

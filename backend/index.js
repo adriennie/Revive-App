@@ -8,7 +8,12 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: true, // Allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
 
 // Initialize Supabase client for credit and messaging modules
@@ -19,6 +24,137 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Setup User Management Routes
 setupUserRoutes(app);
+
+// Create a new user
+app.post('/api/users', async (req, res) => {
+  try {
+    const { clerk_user_id, name, email, photo_url, phone_number } = req.body;
+
+    if (!clerk_user_id || !name || !email) {
+      return res.status(400).json({ 
+        error: 'clerk_user_id, name, and email are required' 
+      });
+    }
+
+    console.log('🔍 Creating new user:', { name, email });
+
+    // Create user in database
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert([{
+        clerk_user_id,
+        name,
+        email,
+        photo_url: photo_url || null,
+        phone_number: phone_number || null,
+        created_at: new Date().toISOString(),
+      }])
+      .select()
+      .single();
+
+    if (userError) {
+      console.error('❌ Error creating user:', userError);
+      return res.status(500).json({ 
+        error: 'Failed to create user', 
+        supabaseError: userError 
+      });
+    }
+
+    // Give new user 100,000 credits by default (using system user as sender)
+    const { data: creditData, error: creditError } = await supabase
+      .from('credit_stack')
+      .insert([{
+        sender_id: userData.id, // Self-transfer for initial credits
+        receiver_id: userData.id,
+        amount: 100000,
+        description: 'Welcome bonus - Initial credits',
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (creditError) {
+      console.error('❌ Error giving initial credits:', creditError);
+      // Don't fail user creation if credit assignment fails
+    } else {
+      console.log('✅ Initial credits assigned:', creditData);
+    }
+
+    console.log('✅ User created successfully:', userData);
+    
+    return res.status(201).json({ 
+      success: true,
+      user: userData,
+      message: 'User created successfully with 100,000 initial credits'
+    });
+  } catch (error) {
+    console.error('💥 Server error creating user:', error);
+    return res.status(500).json({ 
+      error: 'Unexpected server error' 
+    });
+  }
+});
+
+// Give initial credits to existing users
+app.post('/api/users/:userId/give-initial-credits', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log('🔍 POST /api/users/:userId/give-initial-credits endpoint called');
+    console.log('📊 userId:', userId);
+    
+    if (!userId) {
+      console.log('❌ No userId provided');
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Check if user already has credits
+    const { data: existingCredits, error: creditCheckError } = await supabase
+      .from('credit_stack')
+      .select('*')
+      .eq('receiver_id', userId)
+      .limit(1);
+
+    if (creditCheckError) {
+      console.error('❌ Error checking existing credits:', creditCheckError);
+      return res.status(500).json({ error: 'Failed to check existing credits' });
+    }
+
+    if (existingCredits && existingCredits.length > 0) {
+      console.log('✅ User already has credits');
+      return res.status(200).json({ 
+        success: true,
+        message: 'User already has credits',
+        existingCredits: existingCredits.length
+      });
+    }
+
+    // Give user 100,000 credits using self-transfer
+    const { data: creditData, error: creditError } = await supabase
+      .from('credit_stack')
+      .insert([{
+        sender_id: userId, // Self-transfer for initial credits
+        receiver_id: userId,
+        amount: 100000,
+        description: 'Welcome bonus - Initial credits',
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (creditError) {
+      console.error('❌ Error giving initial credits:', creditError);
+      return res.status(500).json({ error: 'Failed to give initial credits' });
+    }
+
+    console.log('✅ Initial credits given successfully:', creditData);
+    
+    return res.status(200).json({ 
+      success: true,
+      credits: creditData,
+      message: 'Initial credits given successfully'
+    });
+  } catch (error) {
+    console.error('💥 Server error giving initial credits:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
 
 // Credit module routes
 app.post('/api/transfer', async (req, res) => {
@@ -213,9 +349,10 @@ app.get('/api/inbox/:userId', async (req, res) => {
       });
     }
 
+    // Fetch chats with sender and receiver names using Supabase's select
     const { data, error } = await supabase
       .from('chats')
-      .select('*')
+      .select(`*, sender:sender_id (name), receiver:receiver_id (name)`) // join users table for both sender and receiver
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .order('updated_at', { ascending: false });
 
@@ -277,24 +414,914 @@ app.post('/orders/new', async (req, res) => {
   }
 });
 
+// GET /api/products?userId=USER_ID
+app.get('/api/products', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    console.log('🔍 /api/products endpoint called');
+    console.log('📊 Request query:', req.query);
+    console.log('📊 userId from query:', userId);
+    console.log('📊 userId type:', typeof userId);
+    
+    if (!userId) {
+      console.log('❌ No userId provided in request');
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    console.log('🔄 Fetching products for userId:', userId);
+    
+    // Fetch products for the user from itemdata
+    const { data, error } = await supabase
+      .from('itemdata')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Supabase error fetching products:', error);
+      return res.status(500).json({ error: 'Failed to fetch products', supabaseError: error });
+    }
+
+    console.log('✅ Products fetched successfully');
+    console.log('📦 Number of products found:', data?.length || 0);
+    console.log('📦 Products data:', data);
+    
+    return res.status(200).json({ products: data });
+  } catch (error) {
+    console.error('💥 Server error fetching products:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// PUT /api/products/:productId - Update product
+app.put('/api/products/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { name, description, category, condition, location, price } = req.body;
+    
+    console.log('🔍 PUT /api/products/:productId endpoint called');
+    console.log('📊 productId:', productId);
+    console.log('📊 Request body:', req.body);
+    
+    if (!productId) {
+      console.log('❌ No productId provided');
+      return res.status(400).json({ error: 'productId is required' });
+    }
+
+    if (!name) {
+      console.log('❌ No name provided');
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    console.log('🔄 Updating product with ID:', productId);
+    
+    // Update product in itemdata table
+    const { data, error } = await supabase
+      .from('itemdata')
+      .update({
+        name: name,
+        description: description || null,
+        category: category || null,
+        condition: condition || null,
+        location: location || null,
+        price: price || null,
+      })
+      .eq('id', productId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase error updating product:', error);
+      return res.status(500).json({ error: 'Failed to update product', supabaseError: error });
+    }
+
+    console.log('✅ Product updated successfully');
+    console.log('📦 Updated product data:', data);
+    
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('💥 Server error updating product:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// DELETE /api/products/:productId - Delete product
+app.delete('/api/products/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    console.log('🔍 DELETE /api/products/:productId endpoint called');
+    console.log('📊 productId:', productId);
+    
+    if (!productId) {
+      console.log('❌ No productId provided');
+      return res.status(400).json({ error: 'productId is required' });
+    }
+
+    console.log('🔄 Deleting product with ID:', productId);
+    
+    // Delete product from itemdata table
+    const { data, error } = await supabase
+      .from('itemdata')
+      .delete()
+      .eq('id', productId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase error deleting product:', error);
+      return res.status(500).json({ error: 'Failed to delete product', supabaseError: error });
+    }
+
+    if (!data) {
+      console.log('❌ Product not found');
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    console.log('✅ Product deleted successfully');
+    console.log('📦 Deleted product data:', data);
+    
+    return res.status(200).json({ 
+      message: 'Product deleted successfully',
+      deletedProduct: data 
+    });
+  } catch (error) {
+    console.error('💥 Server error deleting product:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// Order Management APIs
+
+// POST /api/orders - Create new order request
+app.post('/api/orders', async (req, res) => {
+  try {
+    const { requester_id, item_id, owner_id, item_name, requester_name, owner_name } = req.body;
+    
+    console.log('🔍 POST /api/orders endpoint called');
+    console.log('📊 Request body:', req.body);
+    
+    if (!requester_id || !item_id || !owner_id || !item_name || !requester_name || !owner_name) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Check if order already exists
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('requester_id', requester_id)
+      .eq('item_id', item_id)
+      .eq('owner_id', owner_id)
+      .single();
+
+    if (existingOrder) {
+      console.log('❌ Order already exists');
+      return res.status(400).json({ error: 'Order request already exists' });
+    }
+
+    console.log('🔄 Creating new order request');
+    
+    // Create order
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .insert([{
+        requester_id,
+        item_id,
+        owner_id,
+        item_name,
+        requester_name,
+        owner_name,
+        status: 'pending', // pending, accepted, declined, delivered
+        delivery_status: 'booked', // booked, rejected, delivered
+        created_at: new Date().toISOString(),
+      }])
+      .select()
+      .single();
+
+    if (orderError) {
+      console.error('❌ Supabase error creating order:', orderError);
+      return res.status(500).json({ error: 'Failed to create order', supabaseError: orderError });
+    }
+
+    // Create notification for owner
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: owner_id,
+        type: 'order_request',
+        title: 'New Order Request',
+        message: `${requester_name} wants to get your item: ${item_name}`,
+        order_id: orderData.id,
+        requester_id,
+        item_id,
+        read: false,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (notificationError) {
+      console.error('❌ Supabase error creating notification:', notificationError);
+      // Don't fail the order creation if notification fails
+    }
+
+    console.log('✅ Order created successfully');
+    console.log('📦 Order data:', orderData);
+    
+    return res.status(201).json({ 
+      success: true,
+      order: orderData,
+      message: 'Order request sent successfully'
+    });
+  } catch (error) {
+    console.error('💥 Server error creating order:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// GET /api/orders/:userId - Get orders for a user (both as requester and owner)
+app.get('/api/orders/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log('🔍 GET /api/orders/:userId endpoint called');
+    console.log('📊 userId:', userId);
+    
+    if (!userId) {
+      console.log('❌ No userId provided');
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    console.log('🔄 Fetching orders for userId:', userId);
+    
+    // Get orders where user is requester or owner
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .or(`requester_id.eq.${userId},owner_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Supabase error fetching orders:', error);
+      return res.status(500).json({ error: 'Failed to fetch orders', supabaseError: error });
+    }
+
+    console.log('✅ Orders fetched successfully');
+    console.log('📦 Number of orders found:', data?.length || 0);
+    
+    return res.status(200).json({ orders: data });
+  } catch (error) {
+    console.error('💥 Server error fetching orders:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// PUT /api/orders/:orderId/respond - Accept or decline order
+app.put('/api/orders/:orderId/respond', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { response, owner_id } = req.body; // response: 'accepted' or 'declined'
+    
+    console.log('🔍 PUT /api/orders/:orderId/respond endpoint called');
+    console.log('📊 orderId:', orderId);
+    console.log('📊 Request body:', req.body);
+    
+    if (!orderId || !response || !owner_id) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ error: 'orderId, response, and owner_id are required' });
+    }
+
+    if (!['accepted', 'declined'].includes(response)) {
+      console.log('❌ Invalid response');
+      return res.status(400).json({ error: 'Response must be "accepted" or "declined"' });
+    }
+
+    console.log('🔄 Updating order response');
+    
+    // Update order status
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .update({ 
+        status: response,
+        delivery_status: response === 'accepted' ? 'booked' : 'rejected',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .eq('owner_id', owner_id) // Ensure only owner can respond
+      .select()
+      .single();
+
+    if (orderError) {
+      console.error('❌ Supabase error updating order:', orderError);
+      return res.status(500).json({ error: 'Failed to update order', supabaseError: orderError });
+    }
+
+    if (!orderData) {
+      console.log('❌ Order not found or unauthorized');
+      return res.status(404).json({ error: 'Order not found or unauthorized' });
+    }
+
+    // Create notification for requester
+    const notificationTitle = response === 'accepted' ? 'Order Accepted!' : 'Order Declined';
+    const notificationMessage = response === 'accepted' 
+      ? `Your request for "${orderData.item_name}" has been accepted!`
+      : `Your request for "${orderData.item_name}" has been declined.`;
+
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: orderData.requester_id,
+        type: 'order_response',
+        title: notificationTitle,
+        message: notificationMessage,
+        order_id: orderId,
+        read: false,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (notificationError) {
+      console.error('❌ Supabase error creating notification:', notificationError);
+      // Don't fail the order update if notification fails
+    }
+
+    console.log('✅ Order response updated successfully');
+    console.log('📦 Updated order data:', orderData);
+    
+    return res.status(200).json({ 
+      success: true,
+      order: orderData,
+      message: `Order ${response} successfully`
+    });
+  } catch (error) {
+    console.error('💥 Server error updating order:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// PUT /api/orders/:orderId/deliver - Mark order as delivered and generate OTP
+app.put('/api/orders/:orderId/deliver', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { owner_id } = req.body;
+    
+    console.log('🔍 PUT /api/orders/:orderId/deliver endpoint called');
+    console.log('📊 orderId:', orderId);
+    console.log('📊 owner_id:', owner_id);
+    
+    if (!orderId || !owner_id) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ error: 'orderId and owner_id are required' });
+    }
+
+    // Generate OTP (6 digits)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    console.log('🔄 Marking order as delivered and generating OTP');
+    
+    // First, check if the order exists and is in the correct state
+    const { data: existingOrder, error: checkError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .eq('owner_id', owner_id)
+      .eq('status', 'accepted')
+      .single();
+
+    if (checkError || !existingOrder) {
+      console.error('❌ Order not found or not in correct state:', checkError);
+      return res.status(404).json({ error: 'Order not found or not in correct state for delivery' });
+    }
+
+    // Update order status and add OTP
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .update({ 
+        status: 'delivered',
+        delivery_status: 'delivered',
+        delivery_otp: otp,
+        delivered_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .eq('owner_id', owner_id) // Ensure only owner can deliver
+      .select()
+      .single();
+
+    if (orderError) {
+      console.error('❌ Supabase error updating order:', orderError);
+      
+      // If it's a constraint error, provide a helpful message
+      if (orderError.code === '23514') {
+        return res.status(500).json({ 
+          error: 'Database constraint error. Please run the database migration to add delivery support.',
+          details: orderError.message
+        });
+      }
+      
+      return res.status(500).json({ error: 'Failed to update order', supabaseError: orderError });
+    }
+
+    if (!orderData) {
+      console.log('❌ Order not found or unauthorized');
+      return res.status(404).json({ error: 'Order not found or unauthorized' });
+    }
+
+    // Create notification for requester (receiver) with OTP - NOT for seller
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: orderData.requester_id, // Only send to receiver
+        type: 'delivery_otp',
+        title: 'Item Delivered - OTP Generated',
+        message: `Your item "${orderData.item_name}" has been delivered. OTP: ${otp}. Please pay the bill and verify delivery.`,
+        order_id: orderId,
+        delivery_otp: otp,
+        read: false,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (notificationError) {
+      console.error('❌ Supabase error creating notification:', notificationError);
+    }
+
+    console.log('✅ Order marked as delivered successfully');
+    console.log('📦 Updated order data:', orderData);
+    console.log('🔐 OTP generated for receiver:', otp);
+    
+    return res.status(200).json({ 
+      success: true,
+      order: orderData,
+      message: 'Order marked as delivered and OTP sent to receiver'
+    });
+  } catch (error) {
+    console.error('💥 Server error updating order:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// POST /api/orders/:orderId/generate-bill - Generate bill for delivery
+app.post('/api/orders/:orderId/generate-bill', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { requester_id } = req.body;
+    
+    console.log('🔍 POST /api/orders/:orderId/generate-bill endpoint called');
+    console.log('📊 orderId:', orderId);
+    console.log('📊 Request body:', req.body);
+    
+    if (!orderId || !requester_id) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ error: 'orderId and requester_id are required' });
+    }
+
+    // Check if bill already exists for this order
+    const { data: existingBill, error: existingBillError } = await supabase
+      .from('bills')
+      .select('*')
+      .eq('order_id', orderId)
+      .eq('requester_id', requester_id)
+      .single();
+
+    if (existingBill && !existingBillError) {
+      console.log('📋 Bill already exists for this order');
+      return res.status(200).json({ 
+        success: true,
+        bill: existingBill,
+        breakdown: {
+          productPrice: parseFloat(existingBill.amount),
+          platformFee: parseFloat(existingBill.platform_fee),
+          totalAmount: parseFloat(existingBill.total_amount)
+        },
+        message: 'Bill already exists for this order'
+      });
+    }
+
+    // Get the order and product details to calculate proper amount
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .select('*, itemdata!inner(*)')
+      .eq('id', orderId)
+      .eq('requester_id', requester_id)
+      .single();
+
+    if (orderError || !orderData) {
+      console.error('❌ Order not found:', orderError);
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Calculate bill amounts
+    const productPrice = parseFloat(orderData.itemdata.price) || 0;
+    const platformFee = productPrice * 0.02; // 2% platform fee
+    const totalAmount = productPrice + platformFee;
+
+    console.log('💰 Bill calculation:', {
+      productPrice,
+      platformFee,
+      totalAmount
+    });
+
+    // Generate bill ID
+    const billId = `BILL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log('🔄 Generating bill for order');
+    
+    // Create bill record
+    const { data: billData, error: billError } = await supabase
+      .from('bills')
+      .insert([{
+        bill_id: billId,
+        order_id: orderId,
+        requester_id,
+        amount: productPrice,
+        platform_fee: platformFee,
+        total_amount: totalAmount,
+        status: 'pending', // pending, paid, cancelled
+        created_at: new Date().toISOString(),
+      }])
+      .select()
+      .single();
+
+    if (billError) {
+      console.error('❌ Supabase error creating bill:', billError);
+      return res.status(500).json({ error: 'Failed to generate bill', supabaseError: billError });
+    }
+
+    // Create notification for requester
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: requester_id,
+        type: 'bill_generated',
+        title: 'Bill Generated',
+        message: `Bill generated for "${orderData.item_name}". Product: ${productPrice} credits, Platform Fee: ${platformFee} credits, Total: ${totalAmount} credits.`,
+        order_id: orderId,
+        bill_id: billId,
+        read: false,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (notificationError) {
+      console.error('❌ Supabase error creating notification:', notificationError);
+    }
+
+    console.log('✅ Bill generated successfully');
+    console.log('📦 Bill data:', billData);
+    
+    return res.status(201).json({ 
+      success: true,
+      bill: billData,
+      breakdown: {
+        productPrice,
+        platformFee,
+        totalAmount
+      },
+      message: 'Bill generated successfully'
+    });
+  } catch (error) {
+    console.error('💥 Server error generating bill:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// POST /api/orders/:orderId/pay-bill - Pay bill and transfer credits
+app.post('/api/orders/:orderId/pay-bill', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { requester_id, owner_id } = req.body;
+    
+    console.log('🔍 POST /api/orders/:orderId/pay-bill endpoint called');
+    console.log('📊 orderId:', orderId);
+    console.log('📊 Request body:', req.body);
+    
+    if (!orderId || !requester_id || !owner_id) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ error: 'orderId, requester_id, and owner_id are required' });
+    }
+
+    console.log('🔄 Processing payment and credit transfer');
+    
+    // First, check if bill exists
+    const { data: existingBill, error: billCheckError } = await supabase
+      .from('bills')
+      .select('*')
+      .eq('order_id', orderId)
+      .eq('requester_id', requester_id)
+      .single();
+
+    if (billCheckError || !existingBill) {
+      console.error('❌ Bill not found:', billCheckError);
+      return res.status(404).json({ error: 'Bill not found. Please generate a bill first.' });
+    }
+
+    if (existingBill.status === 'paid') {
+      console.log('❌ Bill already paid');
+      return res.status(400).json({ error: 'Bill has already been paid' });
+    }
+
+    if (existingBill.status !== 'pending') {
+      console.log('❌ Bill status is not pending:', existingBill.status);
+      return res.status(400).json({ error: `Bill status is ${existingBill.status}. Cannot process payment.` });
+    }
+
+    console.log('✅ Found pending bill:', existingBill);
+
+    // Transfer credits from requester to owner (only product price, not platform fee)
+    const { data: transferData, error: transferError } = await supabase
+      .from('credit_stack')
+      .insert([{
+        sender_id: requester_id,
+        receiver_id: owner_id,
+        amount: parseFloat(existingBill.amount), // Product price only
+        description: `Payment for order ${orderId}`,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (transferError) {
+      console.error('❌ Supabase error transferring credits:', transferError);
+      return res.status(500).json({ error: 'Failed to transfer credits', supabaseError: transferError });
+    }
+
+    // Update bill status to paid
+    const { data: billData, error: billError } = await supabase
+      .from('bills')
+      .update({ 
+        status: 'paid',
+        paid_at: new Date().toISOString()
+      })
+      .eq('id', existingBill.id)
+      .select()
+      .single();
+
+    if (billError) {
+      console.error('❌ Supabase error updating bill:', billError);
+      return res.status(500).json({ error: 'Failed to update bill', supabaseError: billError });
+    }
+
+    // Create notification for owner
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: owner_id,
+        type: 'payment_received',
+        title: 'Payment Received',
+        message: `You have received ${existingBill.amount} credits for order ${orderId}`,
+        order_id: orderId,
+        read: false,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (notificationError) {
+      console.error('❌ Supabase error creating notification:', notificationError);
+    }
+
+    console.log('✅ Payment processed successfully');
+    console.log('📦 Transfer data:', transferData);
+    console.log('📦 Bill data:', billData);
+    
+    return res.status(200).json({ 
+      success: true,
+      transfer: transferData,
+      bill: billData,
+      message: 'Payment processed and credits transferred successfully'
+    });
+  } catch (error) {
+    console.error('💥 Server error processing payment:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// POST /api/orders/:orderId/verify-otp - Verify OTP for delivery completion
+app.post('/api/orders/:orderId/verify-otp', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { otp, owner_id } = req.body;
+    
+    console.log('🔍 POST /api/orders/:orderId/verify-otp endpoint called');
+    console.log('📊 orderId:', orderId);
+    console.log('📊 Request body:', req.body);
+    
+    if (!orderId || !otp || !owner_id) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ error: 'orderId, otp, and owner_id are required' });
+    }
+
+    console.log('🔄 Verifying OTP');
+    
+    // Get order and verify OTP
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .eq('owner_id', owner_id)
+      .eq('delivery_otp', otp)
+      .single();
+
+    if (orderError || !orderData) {
+      console.log('❌ Invalid OTP or order not found');
+      return res.status(400).json({ error: 'Invalid OTP or order not found' });
+    }
+
+    // Mark order as completed
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({ 
+        delivery_verified: true,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('❌ Supabase error updating order:', updateError);
+      return res.status(500).json({ error: 'Failed to update order', supabaseError: updateError });
+    }
+
+    // Create notification for requester
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: orderData.requester_id,
+        type: 'delivery_completed',
+        title: 'Delivery Completed',
+        message: `Your order "${orderData.item_name}" has been successfully delivered and verified!`,
+        order_id: orderId,
+        read: false,
+        created_at: new Date().toISOString(),
+      }]);
+
+    if (notificationError) {
+      console.error('❌ Supabase error creating notification:', notificationError);
+    }
+
+    console.log('✅ OTP verified and delivery completed');
+    console.log('📦 Updated order data:', updatedOrder);
+    
+    return res.status(200).json({ 
+      success: true,
+      order: updatedOrder,
+      message: 'OTP verified and delivery completed successfully'
+    });
+  } catch (error) {
+    console.error('💥 Server error verifying OTP:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// GET /api/notifications/:userId - Get notifications for a user
+app.get('/api/notifications/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log('🔍 GET /api/notifications/:userId endpoint called');
+    console.log('📊 userId:', userId);
+    
+    if (!userId) {
+      console.log('❌ No userId provided');
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    console.log('🔄 Fetching notifications for userId:', userId);
+    
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Supabase error fetching notifications:', error);
+      return res.status(500).json({ error: 'Failed to fetch notifications', supabaseError: error });
+    }
+
+    console.log('✅ Notifications fetched successfully');
+    console.log('📦 Number of notifications found:', data?.length || 0);
+    
+    return res.status(200).json({ notifications: data });
+  } catch (error) {
+    console.error('💥 Server error fetching notifications:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// PUT /api/notifications/:notificationId/read - Mark notification as read
+app.put('/api/notifications/:notificationId/read', async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    
+    console.log('🔍 PUT /api/notifications/:notificationId/read endpoint called');
+    console.log('📊 notificationId:', notificationId);
+    
+    if (!notificationId) {
+      console.log('❌ No notificationId provided');
+      return res.status(400).json({ error: 'notificationId is required' });
+    }
+
+    console.log('🔄 Marking notification as read');
+    
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase error updating notification:', error);
+      return res.status(500).json({ error: 'Failed to update notification', supabaseError: error });
+    }
+
+    console.log('✅ Notification marked as read');
+    
+    return res.status(200).json({ 
+      success: true,
+      notification: data
+    });
+  } catch (error) {
+    console.error('💥 Server error updating notification:', error);
+    return res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     message: 'ReVive Backend Server is running',
-    modules: ['User Management', 'Credit System', 'Messaging', 'Orders'] // Added Orders module
+    modules: ['User Management', 'Credit System', 'Messaging', 'Orders']
+  });
+});
+
+// Supabase connectivity test endpoint
+app.get('/api/test-supabase', async (req, res) => {
+  try {
+    console.log('🔍 Testing Supabase connectivity from API endpoint...');
+    
+    // Test basic connection
+    const { data, error } = await supabase
+      .from('users')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('❌ Supabase connection failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Supabase connection failed',
+        details: {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        }
+      });
+    }
+    
+    console.log('✅ Supabase connection successful!');
+    return res.status(200).json({
+      success: true,
+      message: 'Supabase connection successful',
+      data: data
+    });
+    
+  } catch (error) {
+    console.error('💥 Unexpected error during Supabase test:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Unexpected error',
+      details: {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      }
+    });
+  }
+});
+
+// Test endpoint to verify server is working
+app.get('/api/test', (req, res) => {
+  res.status(200).json({ 
+    message: 'Server is working!',
+    timestamp: new Date().toISOString(),
+    routes: [
+      'GET /api/products?userId=USER_ID',
+      'PUT /api/products/:productId',
+      'GET /api/test'
+    ]
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log("🚀 ReVive Backend Server running on http://localhost:" + PORT);
+const HOST = process.env.HOST || '192.168.31.208'; // Use new IP as default
+app.listen(PORT, HOST, () => {
+  console.log("🚀 ReVive Backend Server running on http://" + HOST + ":" + PORT);
   console.log("📋 Available modules:");
   console.log("   👤 User Management: /api/users");
   console.log("   💰 Credit System: /api/transfer, /api/transactions/:userId");
   console.log("   💬 Messaging: /api/send-message, /api/messages/:chatId, /api/create-chat, /api/inbox/:userId");
-  console.log("   🛒 Orders: /api/orders/new"); // Added Orders endpoint to startup message
+  console.log("   🛒 Orders: /api/orders/new");
+  console.log("   📦 Products: /api/products, /api/products/:productId");
   console.log("   🏥 Health Check: /health");
+  console.log("   🧪 Test: /api/test");
 });

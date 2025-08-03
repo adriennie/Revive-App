@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
 import moment from 'moment';
 
-const API_BASE_URL = 'http://192.168.1.3:3001';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
 
 interface MessageType {
   id?: string;

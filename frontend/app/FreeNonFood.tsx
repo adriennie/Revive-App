@@ -32,13 +32,15 @@ interface Item {
 }
 
 const FreeNonFood: FC = () => {
-  const router = useRouter();
-  const { currentUserId } = useLocalSearchParams<{ currentUserId: string }>();
-
+  const params = useLocalSearchParams();
+  const currentUserId = params.currentUserId as string;
+  const currentUserName = params.currentUserName as string;
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [showPopular, setShowPopular] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
+  const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,8 @@ const FreeNonFood: FC = () => {
         pathname: '/ProductScreen',
         params: {
           id: item.id,
-          currentUserId: currentUserId
+          currentUserId: currentUserId,
+          currentUserName: currentUserName
         }
       })}
     >
@@ -126,15 +129,7 @@ const FreeNonFood: FC = () => {
               keyExtractor={item => item}
               showsHorizontalScrollIndicator={false}
             />
-            <View style={styles.toggleRow}>
-              <Text style={styles.filterLabel}>Popular Only</Text>
-              <Switch
-                onValueChange={setShowPopular}
-                value={showPopular}
-                trackColor={{ false: '#767577', true: '#FFB300' }}
-                thumbColor={'#f4f3f4'}
-              />
-            </View>
+         
           </View>
         )}
       </View>

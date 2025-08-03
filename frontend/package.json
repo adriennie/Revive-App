@@ -28,6 +28,7 @@
     "expo-haptics": "~14.1.4",
     "expo-image": "~2.3.0",
     "expo-image-picker": "^16.1.4",
+    "expo-linear-gradient": "^14.1.5",
     "expo-linking": "~7.1.5",
     "expo-router": "~5.1.0",
     "expo-secure-store": "^14.2.3",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native-community/cli": "^19.1.1",
     "@types/react": "^19.1.8",
     "@types/react-native": "^0.73.0",
     "@types/react-router-dom": "^5.3.3",

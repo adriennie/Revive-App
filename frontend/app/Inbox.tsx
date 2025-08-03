@@ -18,12 +18,15 @@ interface ChatType {
   chat_id: string;
   sender_id: string;
   receiver_id: string;
-  sender_name?: string;
-  receiver_name?: string;
+  sender_name?: string;      // (optional, for backward compatibility)
+  receiver_name?: string;    // (optional, for backward compatibility)
   item_name?: string;
   item_image_url?: string;
   updated_at: string;
+  sender?: { name?: string };    // <-- add this
+  receiver?: { name?: string };  // <-- add this
 }
+
 
 export default function Inbox() {
   const router = useRouter();
@@ -34,19 +37,13 @@ export default function Inbox() {
   const [loading, setLoading] = useState(true);
 
   const fetchInbox = async () => {
-    // Don't fetch if we don't know who the current user is
-    if (!currentUserId) {
-        setLoading(false);
-        return;
-    }
+    if (!currentUserId) return;
     try {
-      // +++ Use currentUserId to fetch the inbox +++
-      const res = await axios.get(`http://192.168.1.3:3001/api/inbox/${currentUserId}`);
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const res = await axios.get(`${API_BASE_URL}/api/inbox/${currentUserId}`);
       setChats(res.data || []);
     } catch (err) {
-      console.error('Error fetching inbox:', err);
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch inbox:', err);
     }
   };
 
@@ -95,10 +92,16 @@ export default function Inbox() {
         data={uniqueChats}
         keyExtractor={(item) => item.chat_id}
         renderItem={({ item }) => {
-          // +++ Logic to correctly identify the "other person" in the chat +++
-          const otherUserId = item.sender_id === currentUserId ? item.receiver_id : item.sender_id;
-          const otherUserName = item.sender_id === currentUserId ? item.receiver_name : item.sender_name;
+          const isSender = item.sender_id === currentUserId;
+          const otherUserName =
+            (isSender ? item.receiver?.name : item.sender?.name) ||
+            (isSender ? item.receiver_id : item.sender_id) ||
+            "Unknown User";
+          const otherUserId = isSender ? item.receiver_id : item.sender_id;
           const lastUpdate = moment(item.updated_at).fromNow();
+          const subtitle = isSender
+            ? `You contacted ${otherUserName}`
+            : `${otherUserName} contacted you`;
 
           return (
             <TouchableOpacity
@@ -124,7 +127,6 @@ export default function Inbox() {
                 <Text style={styles.name}>{otherUserName}</Text>
                 <Text style={styles.item} numberOfLines={1}>About: {item.item_name}</Text>
               </View>
-              <Text style={styles.date}>{lastUpdate}</Text>
             </TouchableOpacity>
           );
         }}
@@ -147,4 +149,9 @@ const styles = StyleSheet.create({
   date: { fontSize: 12, color: '#999', marginLeft: 10 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' },
   noChatsText: { fontSize: 16, color: '#777' },
+  subtitle: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
 });

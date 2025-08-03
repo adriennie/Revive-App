@@ -1,4 +1,3 @@
-// File: app/screens/ExploreScreen.tsx
 import React from 'react';
 import {
   View,
@@ -13,7 +12,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
-// Changed CARD_WIDTH to span almost the full width, with some padding
 const CARD_WIDTH = width - 32; // (16 padding on each side)
 
 // Dummy data for redeemable products
@@ -42,7 +40,7 @@ const redeemableItems = [
     imageUrl: 'https://m.media-amazon.com/images/I/415b3x++jbL.jpg',
     pointsRequired: 1500,
   },
-   {
+  {
     id: '5',
     title: 'Fiesta Gift Box',
     imageUrl: 'https://iorganicmilk.com/cdn/shop/products/fiesta-gift-box-assortment-of-3-products-cold-pressed-oil-honey-and-berries-iorganic-iorganic-1_1000x.jpg?v=1660136104',
@@ -61,14 +59,14 @@ export default function ExploreScreen() {
     <TouchableOpacity style={styles.card}>
       <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
       <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.title}</Text> {/* Corrected: <Text> */}
+        <Text style={styles.cardTitle}>{item.title}</Text>
         <View style={styles.pointsContainer}>
           <Ionicons name="leaf" size={18} color="#FF9800" />
-          <Text style={styles.pointsValue}>{item.pointsRequired}</Text> {/* Corrected: <Text> */}
-          <Text style={styles.pointsLabel}>Points</Text> {/* Corrected: <Text> */}
+          <Text style={styles.pointsValue}>{item.pointsRequired}</Text>
+          <Text style={styles.pointsLabel}>Points</Text>
         </View>
         <TouchableOpacity style={styles.redeemButton}>
-          <Text style={styles.redeemButtonText}>Redeem Now</Text> {/* Corrected: <Text> */}
+          <Text style={styles.redeemButtonText}>Redeem Now</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -76,7 +74,7 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.screenTitle}>Discover Rewards</Text> {/* Corrected: <Text> */}
+      <Text style={styles.screenTitle}>Discover Rewards</Text>
       <FlatList
         data={redeemableItems}
         renderItem={renderItem}
