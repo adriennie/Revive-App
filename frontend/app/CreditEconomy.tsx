@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, SafeAreaView, TouchableOpacity,
-  FlatList, TextInput, Modal, StyleSheet, Platform
+  FlatList, TextInput, Modal, StyleSheet, Platform, ScrollView
 } from 'react-native';
 import { useUser } from '@clerk/clerk-expo';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const BACKEND_URL = 'https://34.131.96.88:3000';
+const BACKEND_URL = 'http://192.168.29.61:3000';
 
 export default function CreditEconomy() {
   const { user, isLoaded } = useUser();
-  const userId = user?.id;
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  
+  // Use passed params or fallback to Clerk user
+  const userId = (params.userId as string) || user?.id;
+  const userName = (params.userName as string) || user?.firstName || 'Guest';
+  const userEmail = (params.userEmail as string) || user?.primaryEmailAddress?.emailAddress || '';
+
+  console.log(userId,userName,userEmail);
 
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -18,22 +28,46 @@ export default function CreditEconomy() {
   const [receiverId, setReceiverId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [analytics, setAnalytics] = useState({
+    totalReceived: 0,
+    totalSpent: 0,
+    transactionCount: 0,
+    avgTransaction: 0
+  });
 
   // ────────── Fetch Transactions ──────────
   useEffect(() => {
     if (!userId) return;
 
     const fetchData = async () => {
-      const res = await fetch(`${BACKEND_URL}/transactions/${userId}`);
+      const res = await fetch(`${BACKEND_URL}/api/transactions/${userId}`);
       const json = await res.json();
-      setTransactions(json.data || []);
+      const transactionData = json.data || [];
+      setTransactions(transactionData);
 
-      const total = (json.data || []).reduce((sum, tx) => {
-        if (tx.receiver_id === userId) return sum + tx.amount;
-        if (tx.sender_id === userId) return sum - tx.amount;
+      // Calculate balance and analytics
+      let totalReceived = 0;
+      let totalSpent = 0;
+      
+      const total = transactionData.reduce((sum, tx) => {
+        if (tx.receiver_id === userId) {
+          totalReceived += tx.amount;
+          return sum + tx.amount;
+        }
+        if (tx.sender_id === userId) {
+          totalSpent += tx.amount;
+          return sum - tx.amount;
+        }
         return sum;
       }, 0);
+      
       setBalance(total);
+      setAnalytics({
+        totalReceived,
+        totalSpent,
+        transactionCount: transactionData.length,
+        avgTransaction: transactionData.length > 0 ? Math.round((totalReceived + totalSpent) / transactionData.length) : 0
+      });
     };
 
     fetchData();
@@ -46,7 +80,7 @@ export default function CreditEconomy() {
       return;
     }
 
-    const res = await fetch(`${BACKEND_URL}/transfer`, {
+    const res = await fetch(`${BACKEND_URL}/api/transfer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -73,45 +107,120 @@ export default function CreditEconomy() {
 
   return (
     <SafeAreaView style={styles.safeContainer}>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>Hello, {user?.firstName ?? 'Guest'}</Text>
-        <View style={styles.creditBox}>
-          <Text style={styles.creditLabel}>Current Credit</Text>
-          <Text style={styles.creditValue}>{balance} pts</Text>
-        </View>
-      </View>
-
-      <View style={styles.body}>
-        <TouchableOpacity onPress={() => setShowModal(true)} style={styles.sendButton}>
-          <Text style={styles.sendButtonText}>Send Credits</Text>
+      {/* Header with Back Navigation */}
+      <View style={styles.navigationHeader}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#222" />
         </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>Credit Exchange History</Text>
-        <FlatList
-          data={transactions}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.historyCard}>
-              <View>
-                <Text style={styles.historyDesc}>{item.description}</Text>
-                <Text style={styles.historyDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
-              </View>
-              <Text
-                style={[
-                  styles.historyAmount,
-                  {
-                    color:
-                      item.receiver_id === userId ? '#4CAF50' : '#F44336',
-                  },
-                ]}
-              >
-                {item.receiver_id === userId ? '+' : '-'}
-                {item.amount}
-              </Text>
-            </View>
-          )}
-        />
+        <Text style={styles.pageTitle}>Credit Management</Text>
+        <View style={styles.placeholder} />
       </View>
+
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Credit Balance Card */}
+        <View style={styles.balanceSection}>
+          <Text style={styles.greeting}>Hello, {user?.firstName ?? 'Guest'}</Text>
+          
+          <View style={styles.creditBox}>
+            <Ionicons name="wallet-outline" size={32} color="#FF9800" style={{ marginBottom: 8 }} />
+            <Text style={styles.creditLabel}>Current Balance</Text>
+            <Text style={[styles.creditValue, { color: balance >= 0 ? '#4CAF50' : '#F44336' }]}>
+              {balance} pts
+            </Text>
+          </View>
+        </View>
+
+        {/* Analytics Cards */}
+        <View style={styles.analyticsSection}>
+          <Text style={styles.sectionTitle}>Quick Stats</Text>
+          <View style={styles.analyticsGrid}>
+            <View style={styles.analyticsCard}>
+              <Ionicons name="arrow-down-circle" size={24} color="#4CAF50" />
+              <Text style={styles.analyticsValue}>{analytics.totalReceived}</Text>
+              <Text style={styles.analyticsLabel}>Received</Text>
+            </View>
+            <View style={styles.analyticsCard}>
+              <Ionicons name="arrow-up-circle" size={24} color="#F44336" />
+              <Text style={styles.analyticsValue}>{analytics.totalSpent}</Text>
+              <Text style={styles.analyticsLabel}>Spent</Text>
+            </View>
+            <View style={styles.analyticsCard}>
+              <Ionicons name="swap-horizontal" size={24} color="#2196F3" />
+              <Text style={styles.analyticsValue}>{analytics.transactionCount}</Text>
+              <Text style={styles.analyticsLabel}>Transactions</Text>
+            </View>
+            <View style={styles.analyticsCard}>
+              <Ionicons name="trending-up" size={24} color="#FF9800" />
+              <Text style={styles.analyticsValue}>{analytics.avgTransaction}</Text>
+              <Text style={styles.analyticsLabel}>Avg/Trans</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionSection}>
+          <TouchableOpacity onPress={() => setShowModal(true)} style={styles.sendButton}>
+            <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.sendButtonText}>Send Credits</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Transaction History */}
+        <View style={styles.historySection}>
+          <Text style={styles.sectionTitle}>Transaction History</Text>
+          {transactions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyStateText}>No transactions yet</Text>
+              <Text style={styles.emptyStateSubtext}>Your credit activity will appear here</Text>
+            </View>
+          ) : (
+            transactions.map((item) => (
+              <View key={item.id} style={styles.historyCard}>
+                <View style={styles.historyLeft}>
+                  <View style={[
+                    styles.transactionIcon, 
+                    { backgroundColor: item.receiver_id === userId ? '#E8F5E8' : '#FFEBEE' }
+                  ]}>
+                    <Ionicons 
+                      name={item.receiver_id === userId ? "arrow-down" : "arrow-up"} 
+                      size={16} 
+                      color={item.receiver_id === userId ? '#4CAF50' : '#F44336'} 
+                    />
+                  </View>
+                  <View style={styles.historyInfo}>
+                    <Text style={styles.historyDesc}>
+                      {item.description || (item.receiver_id === userId ? 'Credit Received' : 'Credit Sent')}
+                    </Text>
+                    <Text style={styles.historyDate}>
+                      {new Date(item.created_at).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.historyAmount,
+                    {
+                      color: item.receiver_id === userId ? '#4CAF50' : '#F44336',
+                    },
+                  ]}
+                >
+                  {item.receiver_id === userId ? '+' : '-'}{item.amount} pts
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
 
       {/* ────── Modal ────── */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -160,81 +269,205 @@ const PRIMARY_ACC = '#FF9800';
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f8fafc',
   },
-  header: {
-    backgroundColor: HEADER_BG,
-    paddingTop: Platform.OS === 'ios' ? 20 : 10,
+  navigationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+  },
+  pageTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  placeholder: {
+    width: 40, // Same width as back button for centering
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  balanceSection: {
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   greeting: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 16,
   },
   creditBox: {
-    backgroundColor: ORANGE_LIGHT,
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: '#fef3c7',
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fde68a',
   },
   creditLabel: {
     fontSize: 14,
-    color: '#555',
+    color: '#92400e',
+    marginBottom: 4,
   },
   creditValue: {
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#333',
     marginTop: 4,
   },
-  body: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+  analyticsSection: {
+    backgroundColor: '#fff',
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  analyticsCard: {
+    width: '48%',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
     marginBottom: 12,
-    color: '#333',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  analyticsValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginTop: 8,
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  actionSection: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  historySection: {
+    backgroundColor: '#fff',
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 32,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#64748b',
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 8,
+    textAlign: 'center',
   },
   historyCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F9F9F9',
-    padding: 14,
+    backgroundColor: '#f8fafc',
+    padding: 16,
     marginBottom: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#EEE',
+    borderColor: '#e2e8f0',
+  },
+  historyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  transactionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  historyInfo: {
+    flex: 1,
   },
   historyDesc: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: '#1e293b',
+    marginBottom: 2,
   },
   historyDate: {
     fontSize: 12,
-    color: '#888',
-    marginTop: 2,
+    color: '#64748b',
   },
   historyAmount: {
     fontSize: 16,
     fontWeight: 'bold',
-    alignSelf: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    color: '#1e293b',
   },
   sendButton: {
-    backgroundColor: PRIMARY_ACC,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: '#f59e0b',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#f59e0b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   sendButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
   },
   modalContainer: {
     flex: 1,
@@ -244,14 +477,15 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#d1d5db',
     borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
+    padding: 12,
+    marginBottom: 16,
+    fontSize: 16,
   },
 });

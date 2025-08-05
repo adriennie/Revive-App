@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Animated, Dimensions, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import axios from 'axios';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001'; 
 
@@ -16,6 +18,12 @@ export default function ProductScreen() {
   const [owner, setOwner] = useState<any>(null); // The item's owner
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const checkAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchProductAndOwner = async () => {
@@ -157,6 +165,17 @@ export default function ProductScreen() {
         <ScrollView style={styles.detailsContainer} contentContainerStyle={{ paddingBottom: 120 }}>
             <Text style={styles.productTitle}>{product.name}</Text>
             <Text style={styles.productDesc}>{product.description}</Text>
+            
+            {/* Price Section */}
+            {product.price && (
+              <>
+                <Text style={styles.sectionTitle}>Price</Text>
+                <View style={styles.priceContainer}>
+                  <Text style={styles.priceValue}>{product.price} credits</Text>
+                </View>
+              </>
+            )}
+            
             <Text style={styles.sectionTitle}>Condition</Text>
             <Text style={styles.sectionValue}>{product.condition}</Text>
             <Text style={styles.sectionTitle}>Offered by</Text>
@@ -205,4 +224,36 @@ const styles = StyleSheet.create({
   btnText: { color: '#222', fontWeight: 'bold', fontSize: 16 },
   btnTextAlt: { color: '#222', fontWeight: 'bold', fontSize: 16 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' },
+  // Price section styles
+  priceContainer: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    backgroundColor: '#f0fdf4',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#bbf7d0'
+  },
+  priceValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#10b981',
+    flex: 1
+  },
+  priceTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4
+  },
+  priceTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10b981'
+  },
 });

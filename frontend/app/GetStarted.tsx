@@ -160,7 +160,14 @@ export default function GetStarted() {
         </View>
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => router.push('/CreditEconomy' as any)}
+          onPress={() => router.push({
+            pathname: '/CreditEconomy',
+            params: {
+              userId: currentUserId,
+              userName: userName,
+              userEmail: userEmail
+            }
+          })}
           activeOpacity={0.7}
         >
           <Ionicons name="card-outline" size={24} color="#222" />

@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Feather } from '@expo/vector-icons';
@@ -53,46 +54,45 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, onClose, userName, userEma
       {/* Greeting */}
       <Text style={styles.greeting}>Hi, {displayName}</Text>
 
-      {/* Profile Section */}
-    
-
-      {/* Navigation */}
-      <View style={styles.menuSection}>
-        <SidebarItem
-          icon={<Feather name="box" size={22} color={accent} />}
-          label="Your Products"
-          onPress={() => {
-            onClose();
-            console.log('🔍 Sidebar: Navigating to YourProducts');
-            console.log('📊 currentUserId:', currentUserId);
-            console.log('📊 user?.id:', user?.id);
-            console.log('📊 displayName:', displayName);
-            router.push({ 
-              pathname: '/your-products', 
-              params: { userId: currentUserId || user?.id } 
-            });
-          }}
-        />
-        <SidebarItem
-          icon={<Feather name="shopping-bag" size={22} color={accent} />}
-          label="Orders"
-          onPress={() => {
-            onClose();
-            router.push({ 
-              pathname: '/orders', 
-              params: { userId: currentUserId || user?.id } 
-            });
-          }}
-        />
-        <SidebarItem
-          icon={<Feather name="users" size={22} color={accent} />}
-          label="User Management"
-          onPress={() => {
-            onClose();
-            router.push('/user-management' as any);
-          }}
-        />
-      </View>
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Navigation */}
+        <View style={styles.menuSection}>
+          <SidebarItem
+            icon={<Feather name="box" size={22} color={accent} />}
+            label="Your Products"
+            onPress={() => {
+              onClose();
+              console.log('🔍 Sidebar: Navigating to YourProducts');
+              console.log('📊 currentUserId:', currentUserId);
+              console.log('📊 user?.id:', user?.id);
+              console.log('📊 displayName:', displayName);
+              router.push({ 
+                pathname: '/your-products', 
+                params: { userId: currentUserId || user?.id } 
+              });
+            }}
+          />
+          <SidebarItem
+            icon={<Feather name="shopping-bag" size={22} color={accent} />}
+            label="Orders"
+            onPress={() => {
+              onClose();
+              router.push({ 
+                pathname: '/orders', 
+                params: { userId: currentUserId || user?.id } 
+              });
+            }}
+          />
+          <SidebarItem
+            icon={<Feather name="users" size={22} color={accent} />}
+            label="User Management"
+            onPress={() => {
+              onClose();
+              router.push('/user-management' as any);
+            }}
+          />
+        </View>
+      </ScrollView>
 
       {/* Divider */}
       <View style={styles.divider} />
@@ -151,6 +151,10 @@ const styles = StyleSheet.create({
     color: accent,
     marginBottom: 8,
     marginLeft: 2,
+  },
+  scrollContent: {
+    flex: 1,
+    marginBottom: 16,
   },
   profileSection: {
     alignItems: 'center',

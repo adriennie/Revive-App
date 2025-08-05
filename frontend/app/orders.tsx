@@ -1,5 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Image, ActivityIndicator, Alert, Modal, Dimensions, ScrollView } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  SafeAreaView, 
+  ActivityIndicator, 
+  Alert,
+  Modal,
+  Dimensions,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
+  Easing
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -14,21 +30,23 @@ interface Order {
   requester_name: string;
   owner_name: string;
   status: 'pending' | 'accepted' | 'declined' | 'delivered';
-  delivery_status: 'booked' | 'rejected' | 'delivered';
+  delivery_status: 'booked' | 'rejected' | 'inprogress' | 'delivered';
   delivery_otp?: string;
   delivered_at?: string;
   delivery_verified?: boolean;
   completed_at?: string;
   created_at: string;
   updated_at?: string;
+  bill_generated?: boolean;
 }
 
-interface BillDetails {
-  productPrice: number;
-  platformFee: number;
-  totalAmount: number;
-  orderId: string;
-  itemName: string;
+interface Bill {
+  id: string;
+  order_id: string;
+  product_price: number;
+  platform_fee: number;
+  total_amount: number;
+  status: 'pending' | 'paid';
 }
 
 interface OrdersProps {
@@ -41,33 +59,39 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [billDetails, setBillDetails] = useState<BillDetails | null>(null);
+  const [showOTPModal, setShowOTPModal] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [currentBill, setCurrentBill] = useState<Bill | null>(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [paymentStep, setPaymentStep] = useState<'confirm' | 'processing' | 'success' | 'error'>('confirm');
+  const [paymentError, setPaymentError] = useState('');
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!userId) return;
-    
     fetchOrders();
   }, [userId]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching orders for userId:', userId);
-      
       const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
       const response = await fetch(`${API_BASE_URL}/api/orders/${userId}`);
       const data = await response.json();
       
       if (response.ok) {
-        console.log('✅ Orders fetched successfully:', data.orders);
         setOrders(data.orders || []);
       } else {
-        console.error('❌ Failed to fetch orders:', data);
         setError(data.error || 'Failed to fetch orders');
       }
     } catch (error) {
-      console.error('❌ Network error fetching orders:', error);
       setError('Network error. Please check your connection.');
     } finally {
       setLoading(false);
@@ -76,8 +100,6 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
   const handleOrderResponse = async (order: Order, response: 'accepted' | 'declined') => {
     try {
-      console.log(`🔄 ${response} order:`, order.id);
-      
       const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/respond`, {
         method: 'PUT',
@@ -93,201 +115,224 @@ const Orders: React.FC<OrdersProps> = (props) => {
       const data = await apiResponse.json();
       
       if (apiResponse.ok) {
-        console.log('✅ Order response updated:', data);
-        
-        // Update the order in local state
         setOrders(orders.map(o => 
           o.id === order.id 
             ? { ...o, status: response, delivery_status: response === 'accepted' ? 'booked' : 'rejected', updated_at: new Date().toISOString() }
             : o
         ));
-        
-        Alert.alert(
-          'Success', 
-          `Order ${response} successfully!`,
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Success', `Order ${response} successfully!`);
       } else {
-        console.error('❌ Failed to update order:', data);
         Alert.alert('Error', data.error || 'Failed to update order');
       }
     } catch (error) {
-      console.error('❌ Network error updating order:', error);
       Alert.alert('Error', 'Network error. Please try again.');
     }
   };
-
-  const handleDeliver = async (order: Order) => {
+  const handleSendOTP = async (order: Order) => {
     try {
-      console.log('🔄 Delivering order:', order.id);
-      
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      setLoading(true);
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/deliver`, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json', // Explicitly request JSON response
         },
         body: JSON.stringify({
           owner_id: order.owner_id,
         }),
       });
-
+  
+      // First check if the response is JSON
+      const contentType = apiResponse.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await apiResponse.text();
+        throw new Error(`Server returned non-JSON response: ${textResponse}`);
+      }
+  
       const data = await apiResponse.json();
       
       if (apiResponse.ok) {
-        console.log('✅ Order delivered:', data);
-        
-        // Update the order in local state
         setOrders(orders.map(o => 
           o.id === order.id 
             ? { 
                 ...o, 
-                status: 'delivered', 
-                delivery_status: 'delivered',
-                delivered_at: new Date().toISOString(),
+                delivery_status: 'inprogress',
+                delivery_otp: data.otp,
                 updated_at: new Date().toISOString()
               }
             : o
         ));
-        
-        Alert.alert(
-          'Order Delivered!', 
-          'OTP has been generated and sent to the receiver. Wait for them to pay the bill and provide the OTP for verification.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('OTP Sent!', 'The OTP has been sent to the buyer for verification.');
       } else {
-        console.error('❌ Failed to deliver order:', data);
-        Alert.alert('Error', data.error || 'Failed to deliver order');
+        throw new Error(data.error || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('❌ Network error delivering order:', error);
-      Alert.alert('Error', 'Network error. Please try again.');
+      console.error('Error sending OTP:', error);
+      Alert.alert('Error', error.message || 'Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGenerateBill = async (order: Order) => {
+  const handleVerifyOTP = async () => {
+    if (!currentOrder || !otpInput) return;
+
     try {
-      console.log('🔄 Generating bill for order:', order.id);
-      
+      setLoading(true);
       const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
-      const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/generate-bill`, {
+      const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${currentOrder.id}/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          requester_id: order.requester_id,
+          otp: otpInput,
+          owner_id: currentOrder.owner_id,
         }),
       });
 
       const data = await apiResponse.json();
       
       if (apiResponse.ok) {
-        console.log('✅ Bill generated:', data);
-        
-        // Show bill breakdown in modal
-        const breakdown = data.breakdown;
-        setBillDetails({
-          productPrice: breakdown.productPrice,
-          platformFee: breakdown.platformFee,
-          totalAmount: breakdown.totalAmount,
-          orderId: order.id,
-          itemName: order.item_name
-        });
-        setShowBillModal(true);
-      } else {
-        console.error('❌ Failed to generate bill:', data);
-        Alert.alert('Error', data.error || 'Failed to generate bill');
-      }
-    } catch (error) {
-      console.error('❌ Network error generating bill:', error);
-      Alert.alert('Error', 'Network error. Please try again.');
-    }
-  };
-
-  const handlePayBill = async (order: Order) => {
-    try {
-      console.log('🔄 Paying bill for order:', order.id);
-      
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
-      const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/pay-bill`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          requester_id: order.requester_id,
-          owner_id: order.owner_id,
-        }),
-      });
-
-      const data = await apiResponse.json();
-      
-      if (apiResponse.ok) {
-        console.log('✅ Bill paid:', data);
-        Alert.alert(
-          'Payment Successful!',
-          'Total bill amount (including platform fee) has been paid and credits transferred to the seller.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        console.error('❌ Failed to pay bill:', data);
-        Alert.alert('Error', data.error || 'Failed to pay bill');
-      }
-    } catch (error) {
-      console.error('❌ Network error paying bill:', error);
-      Alert.alert('Error', 'Network error. Please try again.');
-    }
-  };
-
-  const handleVerifyOTP = async (order: Order, otp: string) => {
-    try {
-      console.log('🔄 Verifying OTP for order:', order.id);
-      
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
-      const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          otp,
-          owner_id: order.owner_id,
-        }),
-      });
-
-      const data = await apiResponse.json();
-      
-      if (apiResponse.ok) {
-        console.log('✅ OTP verified:', data);
-        
-        // Update the order in local state
         setOrders(orders.map(o => 
-          o.id === order.id 
+          o.id === currentOrder.id 
             ? { 
                 ...o, 
                 delivery_verified: true,
-                completed_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               }
             : o
         ));
-        
-        Alert.alert(
-          '🎉 Delivery Completed!', 
-          'OTP verified successfully! The delivery has been completed and payment processed.',
-          [{ text: 'OK' }]
-        );
+        setShowOTPModal(false);
+        setOtpInput('');
+        Alert.alert('Success', 'OTP verified successfully!');
       } else {
-        console.error('❌ Failed to verify OTP:', data);
         Alert.alert('Error', data.error || 'Failed to verify OTP');
       }
     } catch (error) {
-      console.error('❌ Network error verifying OTP:', error);
       Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const openOTPModal = (order: Order) => {
+    setCurrentOrder(order);
+    setShowOTPModal(true);
+  };
+
+  const handleShowBill = async (order: Order) => {
+    try {
+      setLoading(true);
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const response = await fetch(`${API_BASE_URL}/api/bills?order_id=${order.id}`);
+      const data = await response.json();
+      
+      if (response.ok && data.bills.length > 0) {
+        setCurrentBill(data.bills[0]);
+        setCurrentOrder(order);
+        setShowBillModal(true);
+      } else {
+        Alert.alert('Error', 'Bill not found for this order');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch bill details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startPaymentAnimation = () => {
+    // Reset animations
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.5);
+    slideAnim.setValue(50);
+    progressAnim.setValue(0);
+    
+    // Start entrance animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const startProgressAnimation = () => {
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 2000,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const initiateBillPayment = () => {
+    setShowBillModal(false);
+    setShowPaymentModal(true);
+    setPaymentStep('confirm');
+    startPaymentAnimation();
+  };
+
+  const handlePayBill = async () => {
+    if (!currentOrder || !currentBill) return;
+  
+    try {
+      setPaymentStep('processing');
+      startProgressAnimation();
+      
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+  
+      // Single API call to handle the complete payment flow
+      const response = await fetch(`${API_BASE_URL}/api/orders/${currentOrder.id}/pay-bill`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requester_id: currentOrder.requester_id,
+          owner_id: currentOrder.owner_id
+        })
+      });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+        // Update local state with the completed order
+        setOrders(orders.map(o => 
+          o.id === currentOrder.id ? { ...o, ...data.order } : o
+        ));
+        setPaymentStep('success');
+        
+        // Auto close after 2 seconds
+        setTimeout(() => {
+          setShowPaymentModal(false);
+          setPaymentStep('confirm');
+        }, 2000);
+      } else {
+        setPaymentStep('error');
+        setPaymentError(data.error || 'Payment failed');
+      }
+    } catch (error) {
+      console.log(error);
+      setPaymentStep('error');
+      setPaymentError(error.message || 'Network error occurred');
+    }
+  };
   const renderOrderItem = ({ item }: { item: Order }) => {
     const isOwner = item.owner_id === userId;
     const isRequester = item.requester_id === userId;
@@ -326,7 +371,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
           </Text>
         </View>
 
-        {/* Action buttons based on user role and order status */}
+        {/* Action buttons for owner */}
         {isOwner && item.status === 'pending' && (
           <View style={styles.actionButtons}>
             <TouchableOpacity 
@@ -347,38 +392,23 @@ const Orders: React.FC<OrdersProps> = (props) => {
           </View>
         )}
 
-        {/* Delivery actions for owner */}
         {isOwner && item.status === 'accepted' && item.delivery_status === 'booked' && (
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={[styles.actionButton, styles.deliverButton]}
-              onPress={() => handleDeliver(item)}
+              onPress={() => handleSendOTP(item)}
             >
-              <Feather name="truck" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Deliver</Text>
+              <Feather name="message-circle" size={16} color="#fff" />
+              <Text style={styles.actionButtonText}>Send OTP</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* OTP verification for owner - show when order is delivered but not verified */}
-        {isOwner && item.status === 'delivered' && item.delivery_otp && !item.delivery_verified && (
+        {isOwner && item.delivery_status === 'inprogress' && item.delivery_otp && !item.delivery_verified && (
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={[styles.actionButton, styles.verifyButton]}
-              onPress={() => {
-                Alert.prompt(
-                  'Verify OTP',
-                  'Enter the OTP provided by the receiver to complete delivery:',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { 
-                      text: 'Verify', 
-                      onPress: (otp) => handleVerifyOTP(item, otp || '')
-                    }
-                  ],
-                  'plain-text'
-                );
-              }}
+              onPress={() => openOTPModal(item)}
             >
               <Feather name="check-circle" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Verify OTP</Text>
@@ -386,25 +416,12 @@ const Orders: React.FC<OrdersProps> = (props) => {
           </View>
         )}
 
-        {/* Bill and payment actions for requester */}
-        {isRequester && item.status === 'accepted' && item.delivery_status === 'booked' && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.billButton]}
-              onPress={() => handleGenerateBill(item)}
-            >
-              <Feather name="file-text" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Generate Bill</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Payment action for requester - show when order is delivered */}
-        {isRequester && item.status === 'delivered' && (
+        {/* Action buttons for requester */}
+        {isRequester && item.delivery_status === 'inprogress' && item.delivery_verified && (
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={[styles.actionButton, styles.payButton]}
-              onPress={() => handlePayBill(item)}
+              onPress={() => handleShowBill(item)}
             >
               <Feather name="credit-card" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Pay Bill</Text>
@@ -412,26 +429,26 @@ const Orders: React.FC<OrdersProps> = (props) => {
           </View>
         )}
 
-        {/* Show OTP for requester (receiver) only */}
-        {isRequester && item.delivery_otp && (
+        {/* OTP display for requester */}
+        {isRequester && item.delivery_otp && !item.delivery_verified && (
           <View style={styles.otpContainer}>
             <Text style={styles.otpText}>OTP: {item.delivery_otp}</Text>
-            <Text style={styles.otpSubtext}>Share this OTP with the seller to complete delivery</Text>
+            <Text style={styles.otpSubtext}>Share this OTP with the seller to verify delivery</Text>
           </View>
         )}
 
         {/* Completion status */}
-        {item.delivery_verified && (
+        {item.delivery_status === 'delivered' && (
           <View style={styles.completedContainer}>
             <Feather name="check-circle" size={20} color="#22c55e" />
-            <Text style={styles.completedText}>Delivery Completed</Text>
+            <Text style={styles.completedText}>Order Delivered</Text>
           </View>
         )}
       </View>
     );
   };
 
-  if (loading) {
+  if (loading && !showOTPModal && !showBillModal) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
@@ -472,9 +489,71 @@ const Orders: React.FC<OrdersProps> = (props) => {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshing={loading}
+        onRefresh={fetchOrders}
       />
 
-      {/* Bill Details Modal */}
+      {/* OTP Verification Modal */}
+      <Modal
+        visible={showOTPModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowOTPModal(false);
+          setOtpInput('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Verify OTP</Text>
+              <Text style={styles.modalSubtitle}>
+                Enter the OTP provided by the buyer to verify delivery
+              </Text>
+              
+              <TextInput
+                style={styles.otpInput}
+                placeholder="Enter OTP"
+                keyboardType="numeric"
+                value={otpInput}
+                onChangeText={setOtpInput}
+                maxLength={6}
+                autoFocus={true}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setShowOTPModal(false);
+                    setOtpInput('');
+                  }}
+                  disabled={loading}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.confirmButton]}
+                  onPress={handleVerifyOTP}
+                  disabled={loading || !otpInput}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.modalButtonText}>Verify</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Bill Payment Modal */}
       <Modal
         visible={showBillModal}
         transparent={true}
@@ -482,55 +561,214 @@ const Orders: React.FC<OrdersProps> = (props) => {
         onRequestClose={() => setShowBillModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Bill Details</Text>
-              <TouchableOpacity 
-                onPress={() => setShowBillModal(false)}
-                style={styles.closeButton}
-              >
-                <Feather name="x" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.billModalContent}>
+            <Text style={styles.billModalTitle}>Order Bill</Text>
             
-            {billDetails && (
-              <View style={styles.billDetails}>
-                <Text style={styles.billItemName}>{billDetails.itemName}</Text>
+            {currentBill && currentOrder && (
+              <>
+                <Text style={styles.billItemName}>{currentOrder.item_name}</Text>
                 
-                <View style={styles.billBreakdown}>
+                <View style={styles.billDetails}>
                   <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Product Price:</Text>
-                    <Text style={styles.billValue}>{billDetails.productPrice} credits</Text>
+                    <Text style={styles.billValue}>{currentBill.amount} credits</Text>
                   </View>
                   
                   <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Platform Fee (2%):</Text>
-                    <Text style={styles.billValue}>{billDetails.platformFee} credits</Text>
+                    <Text style={styles.billValue}>{currentBill.platform_fee} credits</Text>
                   </View>
                   
                   <View style={styles.billDivider} />
                   
                   <View style={styles.billRow}>
                     <Text style={styles.billTotalLabel}>Total Amount:</Text>
-                    <Text style={styles.billTotalValue}>{billDetails.totalAmount} credits</Text>
+                    <Text style={styles.billTotalValue}>{currentBill.total_amount} credits</Text>
                   </View>
                 </View>
                 
-                <Text style={styles.billNote}>
-                  You need to pay the total amount (product price + platform fee) to complete the order.
-                </Text>
-              </View>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.confirmButton]}
+                  onPress={initiateBillPayment}
+                  disabled={loading}
+                >
+                  <Text style={styles.modalButtonText}>Pay Now</Text>
+                </TouchableOpacity>
+              </>
             )}
             
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalButton}
-                onPress={() => setShowBillModal(false)}
-              >
-                <Text style={styles.modalButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={() => setShowBillModal(false)}
+              disabled={loading}
+            >
+              <Text style={styles.modalButtonText}>Close</Text>
+            </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* Animated Payment Transfer Modal */}
+      <Modal
+        visible={showPaymentModal}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => {
+          if (paymentStep !== 'processing') {
+            setShowPaymentModal(false);
+            setPaymentStep('confirm');
+          }
+        }}
+      >
+        <View style={styles.paymentModalOverlay}>
+          <Animated.View 
+            style={[
+              styles.paymentModalContent,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  { scale: scaleAnim },
+                  { translateY: slideAnim }
+                ]
+              }
+            ]}
+          >
+            {paymentStep === 'confirm' && currentBill && currentOrder && (
+              <>
+                <View style={styles.paymentHeader}>
+                  <View style={styles.paymentIconContainer}>
+                    <Feather name="credit-card" size={32} color="#10b981" />
+                  </View>
+                  <Text style={styles.paymentTitle}>Confirm Payment</Text>
+                  <Text style={styles.paymentSubtitle}>Transfer {currentBill.total_amount} credits</Text>
+                </View>
+
+                <View style={styles.paymentSummary}>
+                  <Text style={styles.paymentItemName}>{currentOrder.item_name}</Text>
+                  
+                  <View style={styles.paymentBreakdown}>
+                    <View style={styles.paymentRow}>
+                      <Text style={styles.paymentLabel}>To Seller:</Text>
+                      <Text style={styles.paymentAmount}>{currentBill.amount} credits</Text>
+                    </View>
+                    <View style={styles.paymentRow}>
+                      <Text style={styles.paymentLabel}>Platform Fee:</Text>
+                      <Text style={styles.paymentAmount}>{currentBill.platform_fee} credits</Text>
+                    </View>
+                    <View style={styles.paymentDivider} />
+                    <View style={styles.paymentRow}>
+                      <Text style={styles.paymentTotalLabel}>Total Payment:</Text>
+                      <Text style={styles.paymentTotalAmount}>{currentBill.total_amount} credits</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.paymentActions}>
+                  <TouchableOpacity
+                    style={[styles.paymentButton, styles.paymentCancelButton]}
+                    onPress={() => {
+                      setShowPaymentModal(false);
+                      setPaymentStep('confirm');
+                    }}
+                  >
+                    <Text style={styles.paymentButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.paymentButton, styles.paymentConfirmButton]}
+                    onPress={handlePayBill}
+                  >
+                    <Text style={styles.paymentButtonText}>Confirm Payment</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {paymentStep === 'processing' && (
+              <>
+                <View style={styles.paymentHeader}>
+                  <View style={styles.paymentIconContainer}>
+                    <ActivityIndicator size={32} color="#10b981" />
+                  </View>
+                  <Text style={styles.paymentTitle}>Processing Payment</Text>
+                  <Text style={styles.paymentSubtitle}>Transferring credits securely...</Text>
+                </View>
+
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBar}>
+                    <Animated.View 
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: progressAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0%', '100%']
+                          })
+                        }
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.progressText}>Please wait...</Text>
+                </View>
+              </>
+            )}
+
+            {paymentStep === 'success' && (
+              <>
+                <View style={styles.paymentHeader}>
+                  <View style={[styles.paymentIconContainer, styles.successIconContainer]}>
+                    <Feather name="check-circle" size={32} color="#22c55e" />
+                  </View>
+                  <Text style={[styles.paymentTitle, styles.successTitle]}>Payment Successful!</Text>
+                  <Text style={styles.paymentSubtitle}>Credits transferred successfully</Text>
+                </View>
+
+                <View style={styles.successMessage}>
+                  <Text style={styles.successText}>Your order has been completed!</Text>
+                  <Text style={styles.successSubtext}>The seller has received {currentBill?.amount} credits</Text>
+                </View>
+              </>
+            )}
+
+            {paymentStep === 'error' && (
+              <>
+                <View style={styles.paymentHeader}>
+                  <View style={[styles.paymentIconContainer, styles.errorIconContainer]}>
+                    <Feather name="x-circle" size={32} color="#ef4444" />
+                  </View>
+                  <Text style={[styles.paymentTitle, styles.errorTitle]}>Payment Failed</Text>
+                  <Text style={styles.paymentSubtitle}>Unable to process payment</Text>
+                </View>
+
+                <View style={styles.errorMessage}>
+                  <Text style={styles.errorText}>{paymentError}</Text>
+                </View>
+
+                <View style={styles.paymentActions}>
+                  <TouchableOpacity
+                    style={[styles.paymentButton, styles.paymentCancelButton]}
+                    onPress={() => {
+                      setShowPaymentModal(false);
+                      setPaymentStep('confirm');
+                      setPaymentError('');
+                    }}
+                  >
+                    <Text style={styles.paymentButtonText}>Close</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.paymentButton, styles.paymentConfirmButton]}
+                    onPress={() => {
+                      setPaymentStep('confirm');
+                      setPaymentError('');
+                    }}
+                  >
+                    <Text style={styles.paymentButtonText}>Try Again</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -652,9 +890,6 @@ const styles = StyleSheet.create({
   verifyButton: {
     backgroundColor: '#8b5cf6',
   },
-  billButton: {
-    backgroundColor: '#f59e0b',
-  },
   payButton: {
     backgroundColor: '#10b981',
   },
@@ -695,6 +930,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
   },
+  otpWarning: {
+    fontSize: 12,
+    color: '#f59e0b',
+    marginTop: 4,
+  },
   completedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -714,124 +954,312 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  modalContainer: {
+    width: '100%',
+  },
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
-    width: Math.min(screenWidth - 40, 400),
-    maxHeight: screenHeight * 0.8,
+    width: '100%',
+  },
+  billModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#222',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  billModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#222',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  billItemName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#ef4444',
+  },
+  confirmButton: {
+    backgroundColor: '#10b981',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  billDetails: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 16,
+  },
+  billRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  billLabel: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  billValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+  },
+  billTotalLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#222',
+  },
+  billTotalValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  billDivider: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 12,
+  },
+  // Animated Payment Modal Styles
+  paymentModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  paymentModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  paymentHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  paymentIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0fdf4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  successIconContainer: {
+    backgroundColor: '#f0fdf4',
+  },
+  errorIconContainer: {
+    backgroundColor: '#fef2f2',
+  },
+  paymentTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successTitle: {
+    color: '#22c55e',
+  },
+  errorTitle: {
+    color: '#ef4444',
+  },
+  paymentSubtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  paymentSummary: {
+    marginBottom: 24,
+  },
+  paymentItemName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  paymentBreakdown: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  paymentLabel: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  paymentAmount: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  paymentDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 12,
+  },
+  paymentTotalLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  paymentTotalAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  paymentActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  paymentButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentCancelButton: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 15,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+  paymentConfirmButton: {
+    backgroundColor: '#10b981',
+    shadowColor: '#10b981',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  modalTitle: {
-    fontSize: Math.min(screenWidth * 0.06, 24),
+  paymentButtonText: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#222',
-    flex: 1,
-  },
-  closeButton: {
-    padding: 8,
-    marginLeft: 10,
-  },
-  billDetails: {
-    width: '100%',
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  billItemName: {
-    fontSize: Math.min(screenWidth * 0.05, 20),
-    fontWeight: '600',
-    color: '#222',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  billBreakdown: {
-    borderRadius: 12,
-    backgroundColor: '#f0f9eb',
-    padding: Math.min(screenWidth * 0.04, 15),
-    marginBottom: 15,
-    width: '100%',
-  },
-  billRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    flexWrap: 'wrap',
-  },
-  billLabel: {
-    fontSize: Math.min(screenWidth * 0.04, 16),
-    color: '#333',
-    fontWeight: '500',
-    flex: 1,
-  },
-  billValue: {
-    fontSize: Math.min(screenWidth * 0.04, 16),
-    color: '#22c55e',
-    fontWeight: '600',
-    textAlign: 'right',
-    marginLeft: 10,
-  },
-  billDivider: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: 10,
-    width: '100%',
-  },
-  billTotalLabel: {
-    fontSize: Math.min(screenWidth * 0.045, 18),
-    color: '#222',
-    fontWeight: '700',
-    flex: 1,
-  },
-  billTotalValue: {
-    fontSize: Math.min(screenWidth * 0.06, 24),
-    color: '#22c55e',
-    fontWeight: '700',
-    textAlign: 'right',
-    marginLeft: 10,
-  },
-  billNote: {
-    fontSize: Math.min(screenWidth * 0.035, 14),
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 10,
-    lineHeight: 20,
-  },
-  modalButtons: {
-    width: '100%',
-    marginTop: 15,
-  },
-  modalButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: Math.min(screenHeight * 0.015, 12),
-    paddingHorizontal: Math.min(screenWidth * 0.05, 20),
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  modalButtonText: {
     color: '#fff',
-    fontSize: Math.min(screenWidth * 0.04, 16),
+    letterSpacing: 0.5,
+  },
+  progressContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  progressBar: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#10b981',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  successMessage: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  successText: {
+    fontSize: 18,
     fontWeight: '600',
+    color: '#22c55e',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  successSubtext: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  errorMessage: {
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    backgroundColor: '#fef2f2',
+    padding: 12,
+    borderRadius: 8,
+    width: '100%',
   },
 });
 
