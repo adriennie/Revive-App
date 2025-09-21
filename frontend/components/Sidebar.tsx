@@ -85,10 +85,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, onClose, userName, userEma
           />
           <SidebarItem
             icon={<Feather name="users" size={22} color={accent} />}
-            label="User Management"
+            label="Team"
             onPress={() => {
               onClose();
-              router.push('/user-management' as any);
+              router.push('/Team' as any);
             }}
           />
         </View>

@@ -27,41 +27,23 @@ export default function SignUp() {
     try {
       setPending(true);
       setSuccess(false);
-      console.log('🚀 Starting simplified user registration...');
+      console.log('🚀 Starting Supabase user registration...');
       console.log('📝 Registration details:', { email, name, hasPassword: !!password });
       
-      // Generate a simple user ID for database storage
-      const simpleUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log('🆔 Generated user ID:', simpleUserId);
+      // Register with Supabase
+      const authResult = await AuthService.registerWithSupabase(email, password, name);
       
-      // Create user data for database
-      const userData = {
-        clerk_user_id: simpleUserId,
-        name: name,
-        email: email,
-        photo_url: null,
-        phone_number: null
-      };
-
-      console.log('📊 User data to be inserted:', userData);
-      
-      // Save directly to database
-      console.log('🗄️ Saving user to database...');
-      const dbResult = await api.createUser(userData);
-      
-      if (dbResult.success) {
-        console.log('✅ User saved successfully in database');
-        console.log('📋 Database user details:', dbResult.user);
+      if (authResult.success && authResult.user) {
+        console.log('✅ Supabase registration successful, user data:', authResult.user);
         
-        // Store user info locally for session management
+        // Store user session
         const userSession = {
-          id: simpleUserId,
-          name: name,
-          email: email,
+          id: authResult.user.clerk_user_id,
+          name: authResult.user.name,
+          email: authResult.user.email,
           isAuthenticated: true
         };
         
-        // Store session using AuthService
         await AuthService.storeSession(userSession);
         console.log('💾 User session created and stored:', userSession);
         
@@ -74,11 +56,10 @@ export default function SignUp() {
         // Show success message and redirect
         console.log('🎉 Registration successful! Redirecting to login...');
         
-        // Use setTimeout to ensure the alert shows before navigation
         setTimeout(() => {
           Alert.alert(
             'Success!', 
-            'Account created successfully! You can now sign in.',
+            'Account created successfully! Please check your email to verify your account, then you can sign in.',
             [
               {
                 text: 'OK',
@@ -98,54 +79,13 @@ export default function SignUp() {
         }, 100);
         
       } else {
-        console.error('❌ Failed to save user in database:', dbResult.error);
-        
-        // Show error message
-        setTimeout(() => {
-          Alert.alert(
-            'Error', 
-            'Failed to create account. Please try again.',
-            [
-              {
-                text: 'Try Again',
-                onPress: () => handleSignUp()
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel'
-              }
-            ]
-          );
-        }, 100);
+        console.error('❌ Supabase registration failed:', authResult.error);
+        Alert.alert('Error', authResult.error || 'Failed to create account. Please try again.');
       }
       
     } catch (err) {
-      const error = err as Error & { errors?: Array<{ message: string }> };
       console.error('💥 Registration error:', err);
-      console.error('Error details:', {
-        message: error?.message,
-        errors: error?.errors,
-        stack: error?.stack
-      });
-      
-      if (isNetworkError(error)) {
-        Alert.alert(
-          'Network Error',
-          getNetworkErrorMessage(error),
-          [
-            {
-              text: 'Try Again',
-              onPress: () => handleSignUp()
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel'
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', error?.errors?.[0]?.message || error?.message || 'Sign up failed. Please try again.');
-      }
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setPending(false);
       console.log('Registration process ended');

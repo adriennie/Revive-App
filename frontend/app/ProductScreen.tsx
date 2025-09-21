@@ -7,7 +7,7 @@ import axios from 'axios';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001'; 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
 
 export default function ProductScreen() {
   const router = useRouter();
@@ -18,6 +18,7 @@ export default function ProductScreen() {
   const [owner, setOwner] = useState<any>(null); // The item's owner
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isContacting, setIsContacting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   
   // Animation values
@@ -68,27 +69,58 @@ export default function ProductScreen() {
       return;
     }
     
+    if (currentUserId === owner.id) {
+      Alert.alert("Notice", "You cannot contact yourself about your own product.");
+      return;
+    }
+    
+    setIsContacting(true);
+    
     // Create a chat ID using both the sender's and receiver's IDs
     const chatId = [currentUserId, owner.id].sort().join('-'); 
     
-    await axios.post(`${API_BASE_URL}/api/create-chat`, {
+    try {
+      console.log('🔄 Creating chat...', {
         chat_id: chatId,
-        sender_id: currentUserId, // Sender is the current user
-        receiver_id: owner.id,   // Receiver is the item owner
-        item_name: product.name,
-        receiver_name: owner.name,
-    });
-    
-    router.push({
-      pathname: '/Message',
-      params: {
-        chat_id: chatId,
-        sender_id: currentUserId, // Pass both IDs to the message screen
+        sender_id: currentUserId,
         receiver_id: owner.id,
-        sellerName: owner.name,
-        itemName: product.name,
-      },
-    });
+        item_name: product.name,
+        receiver_name: owner.name
+      });
+      
+      const response = await axios.post(`${API_BASE_URL}/api/create-chat`, {
+          chat_id: chatId,
+          sender_id: currentUserId, // Sender is the current user
+          receiver_id: owner.id,   // Receiver is the item owner
+          item_name: product.name,
+      });
+      
+      console.log('✅ Chat created successfully:', response.data);
+      
+      router.push({
+        pathname: '/Message',
+        params: {
+          chat_id: chatId,
+          sender_id: currentUserId, // Pass both IDs to the message screen
+          receiver_id: owner.id,
+          sellerName: owner.name,
+          itemName: product.name,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Failed to create chat:', error);
+      let errorMessage = 'Unable to start chat. Please try again.';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsContacting(false);
+    }
   }
 
   const handleExpressInterest = async () => {
@@ -190,8 +222,12 @@ export default function ProductScreen() {
             )}
         </ScrollView>
         <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.contactBtn} onPress={handleContactPress} disabled={!owner}>
-                <Text style={styles.btnText}>Contact</Text>
+            <TouchableOpacity 
+                style={[styles.contactBtn, isContacting && styles.submittingBtn]} 
+                onPress={handleContactPress} 
+                disabled={!owner || isContacting}
+            >
+                {isContacting ? <ActivityIndicator color="#222" /> : <Text style={styles.btnText}>Contact</Text>}
             </TouchableOpacity>
             <TouchableOpacity
                 style={[styles.interestBtn, isSubmitting && styles.submittingBtn]}

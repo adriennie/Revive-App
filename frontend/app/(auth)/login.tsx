@@ -168,152 +168,6 @@ export default function Login() {
     }
   }, [userLoaded, isSignedIn, user]);
 
-  const handleGoogleLogin = async () => {
-    if (isSignedIn) {
-      const userName = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
-      const userEmail = user?.primaryEmailAddress?.emailAddress || '';
-      const userId = user?.id || '';
-      router.replace({
-        pathname: '/GetStarted',
-        params: { 
-          userName,
-          userEmail,
-          userId
-        }
-      });
-      return;
-    }
-    try {
-      setPending(true);
-      console.log('🚀 Starting Google OAuth login process...');
-      const { createdSessionId, signIn, signUp } = await startOAuthFlow();
-      console.log('✅ Google OAuth result:', { 
-        createdSessionId: !!createdSessionId,
-        signIn: !!signIn,
-        signUp: !!signUp
-      });
-      
-      // Log detailed OAuth result for debugging
-      console.log('🔍 Detailed OAuth result:', {
-        signIn: signIn ? {
-          hasUser: !!(signIn as any).user,
-          userData: (signIn as any).user ? {
-            firstName: (signIn as any).user?.firstName,
-            fullName: (signIn as any).user?.fullName,
-            email: (signIn as any).user?.primaryEmailAddress?.emailAddress
-          } : null
-        } : null,
-        signUp: signUp ? {
-          hasUser: !!(signUp as any).user,
-          userData: (signUp as any).user ? {
-            firstName: (signUp as any).user?.firstName,
-            fullName: (signUp as any).user?.fullName,
-            email: (signUp as any).user?.primaryEmailAddress?.emailAddress
-          } : null
-        } : null
-      });
-      
-      // Store OAuth result for fallback use
-      setOauthResult({ signIn, signUp });
-      
-      if (createdSessionId) {
-        console.log('✅ Google OAuth session created, getting user data...');
-        // Get the current user immediately after OAuth
-        const currentUser = await getToken();
-        console.log('🔍 Current user token:', currentUser ? 'available' : 'not available');
-        
-        // Wait a moment for Clerk to update the user state
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Try to get user data from Clerk
-        if (user) {
-          console.log('✅ User data available immediately:', user);
-          const googleUserName = (user as any).firstName || 
-                               (user as any).fullName || 
-                               (user as any).primaryEmailAddress?.emailAddress?.split('@')[0] || 
-                               'User';
-          const googleUserEmail = (user as any).primaryEmailAddress?.emailAddress || '';
-          const googleUserId = (user as any).id || `google_${Date.now()}`;
-          
-          console.log('🔍 Extracted user data from Clerk:', { googleUserName, googleUserEmail, googleUserId });
-          
-          // Save user to database
-          try {
-            console.log('💾 Attempting to save user to database...');
-            const userData = {
-              clerk_user_id: googleUserId,
-              name: googleUserName,
-              email: googleUserEmail,
-              photo_url: (user as any).imageUrl || null,
-              phone_number: (user as any).phoneNumbers?.[0]?.phoneNumber || null,
-            };
-            
-            console.log('📝 User data to save:', userData);
-            console.log('🌐 Making API call to:', 'http://localhost:3001/api/users');
-            const dbResult = await api.createUser(userData);
-            console.log('📋 Database result:', dbResult);
-            
-            if (dbResult.success) {
-              console.log('✅ User successfully saved to database:', dbResult.user);
-            } else {
-              console.error('❌ Failed to save user to database:', dbResult.error);
-            }
-          } catch (error) {
-            console.error('💥 Error saving user to database:', error);
-            console.error('💥 Error details:', {
-              message: error.message,
-              response: error.response?.data,
-              status: error.response?.status
-            });
-          }
-          
-          // Create session for Google OAuth user
-          const googleSession = {
-            id: googleUserId,
-            name: googleUserName,
-            email: googleUserEmail,
-            isAuthenticated: true
-          };
-          
-          console.log('💾 Creating session for Google OAuth user:', googleSession);
-          
-          // Store session and redirect
-          AuthService.storeSession(googleSession).then(() => {
-            console.log('🔄 Redirecting to GetStarted after Google OAuth session creation...');
-            router.replace({
-              pathname: '/GetStarted',
-              params: { 
-                userName: googleUserName,
-                userEmail: googleUserEmail,
-                userId: googleUserId
-              }
-            });
-          }).catch(error => {
-            console.error('❌ Failed to store session:', error);
-            // Still redirect even if session storage fails
-            router.replace({
-              pathname: '/GetStarted',
-              params: { 
-                userName: googleUserName,
-                userEmail: googleUserEmail,
-                userId: googleUserId
-              }
-            });
-          });
-        } else {
-          console.log('⏳ User not available yet, setting flag for useEffect...');
-          setGoogleOAuthCompleted(true);
-        }
-      }
-    } catch (err) {
-      const error = err as Error;
-      console.error('💥 Google login error:', err);
-      Alert.alert('Error', 'Google login failed. Try again.');
-    } finally {
-      setPending(false);
-      console.log('🏁 Google login process completed');
-    }
-  };
 
   const handleManualLogin = async () => {
     if (!email || !password) {
@@ -323,22 +177,21 @@ export default function Login() {
     
     try {
       setPending(true);
-      console.log('🚀 Starting manual login process...');
+      console.log('🚀 Starting login process with Supabase...');
       console.log('📝 Login details:', { email, hasPassword: !!password });
       
-      // First, try to authenticate with our database
-      console.log('🔍 Looking up user in database...');
-      const authResult = await AuthService.authenticateUser(email);
+      // Authenticate with Supabase
+      const authResult = await AuthService.authenticateWithSupabase(email, password);
       
       if (authResult.success && authResult.user) {
-        console.log('✅ User found in database:', authResult.user);
+        console.log('✅ Supabase login successful, user data:', authResult.user);
         
-        // Create session for database user
+        // Create session for the user
         const session = AuthService.createSession(authResult.user);
         await AuthService.storeSession(session);
         
         console.log('💾 Session created and stored:', session);
-        console.log('🔄 Redirecting to GetStarted after database login...');
+        console.log('🔄 Redirecting to GetStarted after Supabase login...');
         
         Alert.alert(
           'Login Successful!',
@@ -359,101 +212,16 @@ export default function Login() {
             }
           ]
         );
-        return;
-      }
-      
-      // If not found in database, try Clerk authentication
-      console.log('🔍 User not found in database, trying Clerk authentication...');
-      
-      if (!signIn) {
-        console.error('❌ SignIn not loaded');
-        throw new Error('SignIn not loaded');
-      }
-      
-      console.log('🔐 Attempting to sign in with Clerk...');
-      const result = await signIn.create({ identifier: email, password });
-      
-      console.log('✅ Manual login result:', { 
-        status: result.status,
-        createdSessionId: !!result.createdSessionId
-      });
-      
-      if (result.status === 'complete') {
-        console.log('✅ Manual login successful');
-        // Upsert user in DB from Clerk user
-        if (user) {
-          upsertUserFromClerk(user);
-        }
-        console.log('🔄 Redirecting to GetStarted after manual login...');
-        // Session should be active after manual login, just redirect
-        const userName = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User';
-        const userEmail = user?.primaryEmailAddress?.emailAddress || '';
-        const userId = user?.id || '';
-        router.replace({
-          pathname: '/GetStarted',
-          params: { 
-            userName,
-            userEmail,
-            userId
-          }
-        });
       } else {
-        console.error('❌ Manual login not completed:', result.status);
-        Alert.alert('Error', 'Login not completed.');
+        console.error('❌ Supabase login failed:', authResult.error);
+        Alert.alert('Error', authResult.error || 'Login failed. Please check your credentials.');
       }
     } catch (err) {
-      const error = err as Error & { errors?: Array<{ message: string }> };
-      console.error('💥 Manual login error:', err);
-      console.error('Error details:', {
-        message: error?.message,
-        errors: error?.errors,
-        stack: error?.stack
-      });
-      
-      // Check if it's a "Couldn't find your account" error
-      if (error?.message?.includes("Couldn't find your account")) {
-        Alert.alert(
-          'Account Not Found',
-          'No account found with these credentials. Please check your email and password, or create a new account.',
-          [
-            {
-              text: 'Create Account',
-              onPress: () => router.push('./sign-up')
-            },
-            {
-              text: 'Try Again',
-              onPress: () => {
-                setEmail('');
-                setPassword('');
-              }
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel'
-            }
-          ]
-        );
-      } else if (isNetworkError(error)) {
-        Alert.alert(
-          'Network Error',
-          getNetworkErrorMessage(error),
-          [
-            {
-              text: 'Try Again',
-              onPress: () => handleManualLogin()
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel'
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', error?.errors?.[0]?.message || error?.message || 'Login failed. Try again.');
-      }
+      console.error('💥 Login error:', err);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setPending(false);
-      console.log('🏁 Manual login process completed');
+      console.log('🏁 Login process completed');
     }
   };
 
@@ -501,21 +269,10 @@ export default function Login() {
               Login with Email
             </Button>
 
-            <Text style={styles.or}>OR</Text>
 
-            {/* Google Login */}
-            <Button
-              mode="contained"
-              icon="google"
-              style={styles.googleBtn}
-              onPress={handleGoogleLogin}
-              contentStyle={{ paddingVertical: 8 }}
-              labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
-              loading={pending}
-            >
-              Continue with Google
-            </Button>
-
+            {/* Google Login with Supabase */}
+          
+           
             {/* Sign Up Redirect */}
             <Button
               mode="text"

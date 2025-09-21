@@ -82,7 +82,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const response = await fetch(`${API_BASE_URL}/api/orders/${userId}`);
       const data = await response.json();
       
@@ -100,7 +100,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
   const handleOrderResponse = async (order: Order, response: 'accepted' | 'declined') => {
     try {
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/respond`, {
         method: 'PUT',
         headers: {
@@ -131,7 +131,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const handleSendOTP = async (order: Order) => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/deliver`, {
         method: 'POST',
         headers: {
@@ -180,7 +180,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${currentOrder.id}/verify-otp`, {
         method: 'POST',
         headers: {
@@ -225,7 +225,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const handleShowBill = async (order: Order) => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const response = await fetch(`${API_BASE_URL}/api/bills?order_id=${order.id}`);
       const data = await response.json();
       
@@ -295,7 +295,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
       setPaymentStep('processing');
       startProgressAnimation();
       
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
   
       // Single API call to handle the complete payment flow
       const response = await fetch(`${API_BASE_URL}/api/orders/${currentOrder.id}/pay-bill`, {

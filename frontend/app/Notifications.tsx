@@ -42,7 +42,7 @@ export default function NotificationsPage(props: NotificationsProps) {
       setLoading(true);
       console.log('🔄 Fetching notifications for userId:', userId);
       
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const response = await fetch(`${API_BASE_URL}/api/notifications/${userId}`);
       const data = await response.json();
       
@@ -65,7 +65,7 @@ export default function NotificationsPage(props: NotificationsProps) {
     try {
       console.log('🔄 Marking notification as read:', notificationId);
       
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {

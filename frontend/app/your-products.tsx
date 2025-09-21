@@ -78,7 +78,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
     setLoading(true);
     console.log('🔄 Starting API fetch for userId:', userId);
     
-    fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001'}/api/products?userId=${userId}`)
+    fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000'}/api/products?userId=${userId}`)
       .then(res => {
         console.log('📡 API Response status:', res.status);
         return res.json();
@@ -118,7 +118,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
       console.log('📊 Editing product ID:', editingProduct.id);
       console.log('📊 Edit form data:', editForm);
       
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       
       // Test API connectivity first
       const testResponse = await fetch(`${API_BASE_URL}/api/test`);
@@ -200,7 +200,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
             try {
               console.log('🗑️ Deleting product:', product.id);
               
-              const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+              const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
               const response = await fetch(`${API_BASE_URL}/api/products/${product.id}`, {
                 method: 'DELETE',
                 headers: {

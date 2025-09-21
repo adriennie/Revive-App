@@ -37,20 +37,38 @@ export default function Inbox() {
   const [loading, setLoading] = useState(true);
 
   const fetchInbox = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setLoading(false);
+      return;
+    }
     try {
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.208:3001';
+      console.log('🔄 Fetching inbox for user:', currentUserId);
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
       const res = await axios.get(`${API_BASE_URL}/api/inbox/${currentUserId}`);
+      console.log('✅ Inbox response:', res.data);
       setChats(res.data || []);
     } catch (err) {
-      console.error('Failed to fetch inbox:', err);
+      console.error('❌ Failed to fetch inbox:', err);
+      setChats([]); // Set empty array on error
+    } finally {
+      setLoading(false); // Always set loading to false
     }
   };
 
   useEffect(() => {
-    fetchInbox();
-    const interval = setInterval(fetchInbox, 5000);
-    return () => clearInterval(interval);
+    console.log('🔄 Inbox useEffect triggered with currentUserId:', currentUserId);
+    if (currentUserId) {
+      fetchInbox();
+      const interval = setInterval(() => {
+        // Only fetch if not already loading to prevent multiple requests
+        setLoading(false); // Don't show loading for refresh
+        fetchInbox();
+      }, 5000);
+      return () => clearInterval(interval);
+    } else {
+      setLoading(false);
+      setChats([]);
+    }
   }, [currentUserId]); // Depend on currentUserId
 
   if (loading) {

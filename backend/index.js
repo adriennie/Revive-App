@@ -341,9 +341,21 @@ res.send("Welcome to the ReVive Backend API! Use the endpoints to manage users, 
 
 app.post('/api/create-chat', async (req, res) => {
   try {
-    const { chat_id, sender_id, receiver_id, item_name, receiver_name } = req.body;
+    console.log('🔍 POST /api/create-chat endpoint called');
+    console.log('📊 Request body:', JSON.stringify(req.body, null, 2));
+    
+    const { chat_id, sender_id, receiver_id, item_name } = req.body;
+    
+    console.log('📊 Extracted fields:', { chat_id, sender_id, receiver_id, item_name });
 
-    if (!chat_id || !sender_id || !receiver_id || !item_name || !receiver_name) {
+    if (!chat_id || !sender_id || !receiver_id || !item_name) {
+      console.log('❌ Missing required fields');
+      console.log('📊 Field check:', {
+        chat_id: !!chat_id,
+        sender_id: !!sender_id,
+        receiver_id: !!receiver_id,
+        item_name: !!item_name
+      });
       return res.status(400).json({ 
         error: 'Missing required fields' 
       });
@@ -356,9 +368,8 @@ app.post('/api/create-chat', async (req, res) => {
         sender_id,
         receiver_id,
         item_name,
-        receiver_name,
         updated_at: new Date().toISOString()
-      }], { onConflict: ['chat_id'] });
+      }], { onConflict: 'chat_id' });
 
     if (error) {
       console.error('Supabase error:', error);
@@ -1445,7 +1456,7 @@ app.get('/api/test', (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST; // Use new IP as default
 app.listen(PORT, HOST, () => {
   console.log("🚀 ReVive Backend Server running on http://" + HOST + ":" + PORT);
