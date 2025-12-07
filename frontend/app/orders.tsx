@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  ActivityIndicator, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator,
   Alert,
   Modal,
   Dimensions,
@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
+import { config } from '../lib/config';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -67,7 +68,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const [otpInput, setOtpInput] = useState('');
   const [paymentStep, setPaymentStep] = useState<'confirm' | 'processing' | 'success' | 'error'>('confirm');
   const [paymentError, setPaymentError] = useState('');
-  
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
@@ -82,10 +83,10 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+      const API_BASE_URL = config.API_BASE_URL;
       const response = await fetch(`${API_BASE_URL}/api/orders/${userId}`);
       const data = await response.json();
-      
+
       if (response.ok) {
         setOrders(data.orders || []);
       } else {
@@ -100,7 +101,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
   const handleOrderResponse = async (order: Order, response: 'accepted' | 'declined') => {
     try {
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+      const API_BASE_URL = config.API_BASE_URL;
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/respond`, {
         method: 'PUT',
         headers: {
@@ -113,10 +114,10 @@ const Orders: React.FC<OrdersProps> = (props) => {
       });
 
       const data = await apiResponse.json();
-      
+
       if (apiResponse.ok) {
-        setOrders(orders.map(o => 
-          o.id === order.id 
+        setOrders(orders.map(o =>
+          o.id === order.id
             ? { ...o, status: response, delivery_status: response === 'accepted' ? 'booked' : 'rejected', updated_at: new Date().toISOString() }
             : o
         ));
@@ -131,7 +132,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const handleSendOTP = async (order: Order) => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+      const API_BASE_URL = config.API_BASE_URL;
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${order.id}/deliver`, {
         method: 'POST',
         headers: {
@@ -142,25 +143,25 @@ const Orders: React.FC<OrdersProps> = (props) => {
           owner_id: order.owner_id,
         }),
       });
-  
+
       // First check if the response is JSON
       const contentType = apiResponse.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const textResponse = await apiResponse.text();
         throw new Error(`Server returned non-JSON response: ${textResponse}`);
       }
-  
+
       const data = await apiResponse.json();
-      
+
       if (apiResponse.ok) {
-        setOrders(orders.map(o => 
-          o.id === order.id 
-            ? { 
-                ...o, 
-                delivery_status: 'inprogress',
-                delivery_otp: data.otp,
-                updated_at: new Date().toISOString()
-              }
+        setOrders(orders.map(o =>
+          o.id === order.id
+            ? {
+              ...o,
+              delivery_status: 'inprogress',
+              delivery_otp: data.otp,
+              updated_at: new Date().toISOString()
+            }
             : o
         ));
         Alert.alert('OTP Sent!', 'The OTP has been sent to the buyer for verification.');
@@ -180,7 +181,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+      const API_BASE_URL = config.API_BASE_URL;
       const apiResponse = await fetch(`${API_BASE_URL}/api/orders/${currentOrder.id}/verify-otp`, {
         method: 'POST',
         headers: {
@@ -193,15 +194,15 @@ const Orders: React.FC<OrdersProps> = (props) => {
       });
 
       const data = await apiResponse.json();
-      
+
       if (apiResponse.ok) {
-        setOrders(orders.map(o => 
-          o.id === currentOrder.id 
-            ? { 
-                ...o, 
-                delivery_verified: true,
-                updated_at: new Date().toISOString()
-              }
+        setOrders(orders.map(o =>
+          o.id === currentOrder.id
+            ? {
+              ...o,
+              delivery_verified: true,
+              updated_at: new Date().toISOString()
+            }
             : o
         ));
         setShowOTPModal(false);
@@ -225,10 +226,10 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const handleShowBill = async (order: Order) => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+      const API_BASE_URL = config.API_BASE_URL;
       const response = await fetch(`${API_BASE_URL}/api/bills?order_id=${order.id}`);
       const data = await response.json();
-      
+
       if (response.ok && data.bills.length > 0) {
         setCurrentBill(data.bills[0]);
         setCurrentOrder(order);
@@ -249,7 +250,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
     scaleAnim.setValue(0.5);
     slideAnim.setValue(50);
     progressAnim.setValue(0);
-    
+
     // Start entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -290,13 +291,13 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
   const handlePayBill = async () => {
     if (!currentOrder || !currentBill) return;
-  
+
     try {
       setPaymentStep('processing');
       startProgressAnimation();
-      
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
-  
+
+      const API_BASE_URL = config.API_BASE_URL;
+
       // Single API call to handle the complete payment flow
       const response = await fetch(`${API_BASE_URL}/api/orders/${currentOrder.id}/pay-bill`, {
         method: 'POST',
@@ -308,16 +309,16 @@ const Orders: React.FC<OrdersProps> = (props) => {
           owner_id: currentOrder.owner_id
         })
       });
-  
+
       const data = await response.json();
-  
+
       if (response.ok) {
         // Update local state with the completed order
-        setOrders(orders.map(o => 
+        setOrders(orders.map(o =>
           o.id === currentOrder.id ? { ...o, ...data.order } : o
         ));
         setPaymentStep('success');
-        
+
         // Auto close after 2 seconds
         setTimeout(() => {
           setShowPaymentModal(false);
@@ -336,21 +337,21 @@ const Orders: React.FC<OrdersProps> = (props) => {
   const renderOrderItem = ({ item }: { item: Order }) => {
     const isOwner = item.owner_id === userId;
     const isRequester = item.requester_id === userId;
-    
+
     return (
       <View style={styles.orderCard}>
         <View style={styles.orderHeader}>
           <Text style={styles.itemName}>{item.item_name}</Text>
-          <View style={[styles.statusBadge, { 
-            backgroundColor: 
-              item.status === 'accepted' ? '#22c55e' : 
-              item.status === 'declined' ? '#ef4444' : 
-              item.status === 'delivered' ? '#3b82f6' : '#f59e0b'
+          <View style={[styles.statusBadge, {
+            backgroundColor:
+              item.status === 'accepted' ? '#22c55e' :
+                item.status === 'declined' ? '#ef4444' :
+                  item.status === 'delivered' ? '#3b82f6' : '#f59e0b'
           }]}>
             <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
           </View>
         </View>
-        
+
         <View style={styles.orderDetails}>
           {isOwner ? (
             <Text style={styles.detailText}>
@@ -361,11 +362,11 @@ const Orders: React.FC<OrdersProps> = (props) => {
               Offered by: <Text style={styles.boldText}>{item.owner_name}</Text>
             </Text>
           )}
-          
+
           <Text style={styles.detailText}>
             Delivery Status: <Text style={styles.boldText}>{item.delivery_status?.toUpperCase() || 'N/A'}</Text>
           </Text>
-          
+
           <Text style={styles.dateText}>
             {new Date(item.created_at).toLocaleDateString()}
           </Text>
@@ -374,15 +375,15 @@ const Orders: React.FC<OrdersProps> = (props) => {
         {/* Action buttons for owner */}
         {isOwner && item.status === 'pending' && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, styles.acceptButton]}
               onPress={() => handleOrderResponse(item, 'accepted')}
             >
               <Feather name="check" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Accept</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[styles.actionButton, styles.declineButton]}
               onPress={() => handleOrderResponse(item, 'declined')}
             >
@@ -394,7 +395,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
         {isOwner && item.status === 'accepted' && item.delivery_status === 'booked' && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, styles.deliverButton]}
               onPress={() => handleSendOTP(item)}
             >
@@ -406,7 +407,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
         {isOwner && item.delivery_status === 'inprogress' && item.delivery_otp && !item.delivery_verified && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, styles.verifyButton]}
               onPress={() => openOTPModal(item)}
             >
@@ -419,7 +420,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
         {/* Action buttons for requester */}
         {isRequester && item.delivery_status === 'inprogress' && item.delivery_verified && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, styles.payButton]}
               onPress={() => handleShowBill(item)}
             >
@@ -504,7 +505,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
         }}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalContainer}
           >
@@ -513,7 +514,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
               <Text style={styles.modalSubtitle}>
                 Enter the OTP provided by the buyer to verify delivery
               </Text>
-              
+
               <TextInput
                 style={styles.otpInput}
                 placeholder="Enter OTP"
@@ -535,7 +536,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
                 >
                   <Text style={styles.modalButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={[styles.modalButton, styles.confirmButton]}
                   onPress={handleVerifyOTP}
@@ -563,30 +564,30 @@ const Orders: React.FC<OrdersProps> = (props) => {
         <View style={styles.modalOverlay}>
           <View style={styles.billModalContent}>
             <Text style={styles.billModalTitle}>Order Bill</Text>
-            
+
             {currentBill && currentOrder && (
               <>
                 <Text style={styles.billItemName}>{currentOrder.item_name}</Text>
-                
+
                 <View style={styles.billDetails}>
                   <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Product Price:</Text>
                     <Text style={styles.billValue}>{currentBill.amount} credits</Text>
                   </View>
-                  
+
                   <View style={styles.billRow}>
                     <Text style={styles.billLabel}>Platform Fee (2%):</Text>
                     <Text style={styles.billValue}>{currentBill.platform_fee} credits</Text>
                   </View>
-                  
+
                   <View style={styles.billDivider} />
-                  
+
                   <View style={styles.billRow}>
                     <Text style={styles.billTotalLabel}>Total Amount:</Text>
                     <Text style={styles.billTotalValue}>{currentBill.total_amount} credits</Text>
                   </View>
                 </View>
-                
+
                 <TouchableOpacity
                   style={[styles.modalButton, styles.confirmButton]}
                   onPress={initiateBillPayment}
@@ -596,7 +597,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
                 </TouchableOpacity>
               </>
             )}
-            
+
             <TouchableOpacity
               style={[styles.modalButton, styles.cancelButton]}
               onPress={() => setShowBillModal(false)}
@@ -621,7 +622,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
         }}
       >
         <View style={styles.paymentModalOverlay}>
-          <Animated.View 
+          <Animated.View
             style={[
               styles.paymentModalContent,
               {
@@ -645,7 +646,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
                 <View style={styles.paymentSummary}>
                   <Text style={styles.paymentItemName}>{currentOrder.item_name}</Text>
-                  
+
                   <View style={styles.paymentBreakdown}>
                     <View style={styles.paymentRow}>
                       <Text style={styles.paymentLabel}>To Seller:</Text>
@@ -673,7 +674,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
                   >
                     <Text style={styles.paymentButtonText}>Cancel</Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={[styles.paymentButton, styles.paymentConfirmButton]}
                     onPress={handlePayBill}
@@ -696,7 +697,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
 
                 <View style={styles.progressContainer}>
                   <View style={styles.progressBar}>
-                    <Animated.View 
+                    <Animated.View
                       style={[
                         styles.progressFill,
                         {
@@ -755,7 +756,7 @@ const Orders: React.FC<OrdersProps> = (props) => {
                   >
                     <Text style={styles.paymentButtonText}>Close</Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={[styles.paymentButton, styles.paymentConfirmButton]}
                     onPress={() => {

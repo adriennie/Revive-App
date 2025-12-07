@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { config } from '../lib/config';
 import {
   View,
   Text,
@@ -24,7 +25,7 @@ interface CreditWidgetProps {
   onClose?: () => void;
 }
 
-const BACKEND_URL = 'https://192.168.29.61:3000';
+const BACKEND_URL = config.API_BASE_URL;
 
 const CreditWidget: React.FC<CreditWidgetProps> = ({ userId, onClose }) => {
   const router = useRouter();

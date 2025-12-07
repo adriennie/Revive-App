@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { config } from '../lib/config';
 
 interface Notification {
   id: string;
@@ -33,7 +34,7 @@ export default function NotificationsPage(props: NotificationsProps) {
 
   useEffect(() => {
     if (!userId) return;
-    
+
     fetchNotifications();
   }, [userId]);
 
@@ -41,11 +42,11 @@ export default function NotificationsPage(props: NotificationsProps) {
     try {
       setLoading(true);
       console.log('🔄 Fetching notifications for userId:', userId);
-      
-  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+
+      const API_BASE_URL = config.API_BASE_URL;
       const response = await fetch(`${API_BASE_URL}/api/notifications/${userId}`);
       const data = await response.json();
-      
+
       if (response.ok) {
         console.log('✅ Notifications fetched successfully:', data.notifications);
         setNotifications(data.notifications || []);
@@ -64,8 +65,8 @@ export default function NotificationsPage(props: NotificationsProps) {
   const markAsRead = async (notificationId: string) => {
     try {
       console.log('🔄 Marking notification as read:', notificationId);
-      
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+
+      const API_BASE_URL = config.API_BASE_URL;
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
@@ -74,13 +75,13 @@ export default function NotificationsPage(props: NotificationsProps) {
       });
 
       const data = await response.json();
-      
+
       if (response.ok) {
         console.log('✅ Notification marked as read:', data);
-        
+
         // Update the notification in local state
-        setNotifications(notifications.map(n => 
-          n.id === notificationId 
+        setNotifications(notifications.map(n =>
+          n.id === notificationId
             ? { ...n, read: true }
             : n
         ));
@@ -99,7 +100,7 @@ export default function NotificationsPage(props: NotificationsProps) {
     if (!notification.read) {
       markAsRead(notification.id);
     }
-    
+
     // Navigate based on notification type
     if (notification.type === 'order_request' && notification.order_id) {
       // Navigate to orders screen
@@ -141,8 +142,8 @@ export default function NotificationsPage(props: NotificationsProps) {
   };
 
   const renderNotificationItem = ({ item }: { item: Notification }) => (
-    <TouchableOpacity 
-      style={[styles.notificationCard, !item.read && styles.unreadCard]} 
+    <TouchableOpacity
+      style={[styles.notificationCard, !item.read && styles.unreadCard]}
       onPress={() => handleNotificationPress(item)}
       activeOpacity={0.7}
     >
@@ -228,7 +229,7 @@ export default function NotificationsPage(props: NotificationsProps) {
         <Text style={styles.title}>Notifications</Text>
         <View style={{ width: 24 }} />
       </View>
-      
+
       <FlatList
         data={notifications}
         renderItem={renderNotificationItem}

@@ -14,8 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
 import moment from 'moment';
+import { config } from '../lib/config';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+const API_BASE_URL = config.API_BASE_URL;
 
 interface MessageType {
   id?: string;
@@ -27,7 +28,7 @@ interface MessageType {
 export default function Message() {
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
-  
+
   const { chat_id, sender_id, receiver_id, sellerName } = useLocalSearchParams<{
     chat_id: string;
     sender_id: string;
@@ -125,16 +126,16 @@ export default function Message() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF8E1' },
-    header: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, backgroundColor: '#fb923c' },
-    headerText: { fontSize: 18, fontWeight: 'bold', marginLeft: 16, color: '#fff' },
-    messageBubble: { maxWidth: '80%', marginBottom: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-    sent: { alignSelf: 'flex-end', backgroundColor: '#fb923c' },
-    received: { alignSelf: 'flex-start', backgroundColor: '#E5E7EB' },
-    sentText: { color: '#fff', fontSize: 16 },
-    receivedText: { color: '#111827', fontSize: 16 },
-    timestamp: { fontSize: 10, marginTop: 4, textAlign: 'right', color: '#F3F4F6' },
-    inputContainer: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
-    input: { flex: 1, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 10 : 8, fontSize: 16 },
-    sendButton: { marginLeft: 8, backgroundColor: '#fb923c', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#FFF8E1' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, backgroundColor: '#fb923c' },
+  headerText: { fontSize: 18, fontWeight: 'bold', marginLeft: 16, color: '#fff' },
+  messageBubble: { maxWidth: '80%', marginBottom: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  sent: { alignSelf: 'flex-end', backgroundColor: '#fb923c' },
+  received: { alignSelf: 'flex-start', backgroundColor: '#E5E7EB' },
+  sentText: { color: '#fff', fontSize: 16 },
+  receivedText: { color: '#111827', fontSize: 16 },
+  timestamp: { fontSize: 10, marginTop: 4, textAlign: 'right', color: '#F3F4F6' },
+  inputContainer: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
+  input: { flex: 1, backgroundColor: '#f0f0f0', borderRadius: 20, paddingHorizontal: 16, paddingVertical: Platform.OS === 'ios' ? 10 : 8, fontSize: 16 },
+  sendButton: { marginLeft: 8, backgroundColor: '#fb923c', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 });

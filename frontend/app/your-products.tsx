@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { config } from '../lib/config';
 
 const accent = '#2563eb';
 const cardBg = '#fff';
@@ -68,17 +69,17 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
     console.log('🔍 YourProducts useEffect triggered');
     console.log('📊 userId:', userId);
     console.log('📊 userId type:', typeof userId);
-    
+
     if (!userId) {
       console.log('❌ No userId provided, returning early');
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     console.log('🔄 Starting API fetch for userId:', userId);
-    
-    fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000'}/api/products?userId=${userId}`)
+
+    fetch(`${config.API_BASE_URL}/api/products?userId=${userId}`)
       .then(res => {
         console.log('📡 API Response status:', res.status);
         return res.json();
@@ -112,18 +113,18 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
 
   const handleSaveEdit = async () => {
     if (!editingProduct) return;
-    
+
     try {
       console.log('🔄 Saving product edit...');
       console.log('📊 Editing product ID:', editingProduct.id);
       console.log('📊 Edit form data:', editForm);
-      
-      const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
-      
+
+      const API_BASE_URL = config.API_BASE_URL;
+
       // Test API connectivity first
       const testResponse = await fetch(`${API_BASE_URL}/api/test`);
       console.log('📡 Test API Response status:', testResponse.status);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/products/${editingProduct.id}`, {
         method: 'PUT',
         headers: {
@@ -141,7 +142,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
 
       console.log('📡 Response status:', response.status);
       console.log('📡 Response headers:', response.headers);
-      
+
       const responseText = await response.text();
       console.log('📡 Raw response:', responseText);
 
@@ -155,16 +156,16 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
           Alert.alert('Error', 'Invalid response from server. Please try again.');
           return;
         }
-        
+
         console.log('✅ Product updated successfully:', updatedProduct);
-        
+
         // Update the product in the local state
-        setProducts(products.map(p => 
-          p.id === editingProduct.id 
+        setProducts(products.map(p =>
+          p.id === editingProduct.id
             ? { ...p, ...editForm, price: parseFloat(editForm.price) || 0 }
             : p
         ));
-        
+
         setEditModalVisible(false);
         setEditingProduct(null);
         Alert.alert('Success', 'Product updated successfully!');
@@ -199,8 +200,8 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
           onPress: async () => {
             try {
               console.log('🗑️ Deleting product:', product.id);
-              
-              const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+
+              const API_BASE_URL = config.API_BASE_URL;
               const response = await fetch(`${API_BASE_URL}/api/products/${product.id}`, {
                 method: 'DELETE',
                 headers: {
@@ -209,7 +210,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
               });
 
               console.log('📡 Delete response status:', response.status);
-              
+
               const responseText = await response.text();
               console.log('📡 Delete response:', responseText);
 
@@ -223,12 +224,12 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
                   Alert.alert('Error', 'Invalid response from server. Please try again.');
                   return;
                 }
-                
+
                 console.log('✅ Product deleted successfully:', deleteResult);
-                
+
                 // Remove the product from the local state
                 setProducts(products.filter(p => p.id !== product.id));
-                
+
                 Alert.alert('Success', 'Product deleted successfully!');
               } else {
                 let errorData;
@@ -263,29 +264,29 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
   const renderItem = ({ item }: { item: Product }) => (
     <View style={styles.productCard}>
       <View style={styles.imageContainer}>
-        <Image 
-          source={{ 
+        <Image
+          source={{
             uri: item.image_url || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=300&fit=crop'
-          }} 
+          }}
           style={styles.productImage}
           resizeMode="cover"
         />
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.actionButton} 
+          <TouchableOpacity
+            style={styles.actionButton}
             onPress={() => handleEdit(item)}
           >
             <Feather name="edit-2" size={16} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.deleteButton]} 
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
             onPress={() => handleDelete(item)}
           >
             <Feather name="trash-2" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <View style={styles.productInfo}>
         <Text style={styles.productTitle} numberOfLines={2}>{item.name}</Text>
         <Text style={styles.productDescription} numberOfLines={2}>
@@ -363,28 +364,28 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
         transparent={true}
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Product</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setEditModalVisible(false)}
                 style={styles.closeButton}
               >
                 <Feather name="x" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Product Name *</Text>
                 <TextInput
                   style={styles.input}
                   value={editForm.name}
-                  onChangeText={(text) => setEditForm({...editForm, name: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, name: text })}
                   placeholder="Enter product name"
                 />
               </View>
@@ -394,7 +395,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={editForm.description}
-                  onChangeText={(text) => setEditForm({...editForm, description: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, description: text })}
                   placeholder="Enter product description"
                   multiline
                   numberOfLines={3}
@@ -407,7 +408,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
                   <TextInput
                     style={styles.input}
                     value={editForm.category}
-                    onChangeText={(text) => setEditForm({...editForm, category: text})}
+                    onChangeText={(text) => setEditForm({ ...editForm, category: text })}
                     placeholder="e.g., Electronics"
                   />
                 </View>
@@ -416,7 +417,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
                   <TextInput
                     style={styles.input}
                     value={editForm.condition}
-                    onChangeText={(text) => setEditForm({...editForm, condition: text})}
+                    onChangeText={(text) => setEditForm({ ...editForm, condition: text })}
                     placeholder="e.g., New"
                   />
                 </View>
@@ -427,7 +428,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
                 <TextInput
                   style={styles.input}
                   value={editForm.location}
-                  onChangeText={(text) => setEditForm({...editForm, location: text})}
+                  onChangeText={(text) => setEditForm({ ...editForm, location: text })}
                   placeholder="Enter location"
                 />
               </View>
@@ -438,7 +439,7 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
                   <TextInput
                     style={styles.input}
                     value={editForm.price}
-                    onChangeText={(text) => setEditForm({...editForm, price: text})}
+                    onChangeText={(text) => setEditForm({ ...editForm, price: text })}
                     placeholder="0.00"
                     keyboardType="numeric"
                   />
@@ -447,13 +448,13 @@ const YourProducts: React.FC<YourProductsProps> = (props) => {
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setEditModalVisible(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.saveButton}
                 onPress={handleSaveEdit}
               >

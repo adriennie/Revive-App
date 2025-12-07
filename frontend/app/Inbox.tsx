@@ -12,6 +12,7 @@ import {
 import axios from 'axios';
 import { useRouter, useLocalSearchParams } from 'expo-router'; // Import useLocalSearchParams
 import moment from 'moment';
+import { config } from '../lib/config';
 
 // Define a type for chat items
 interface ChatType {
@@ -32,7 +33,7 @@ export default function Inbox() {
   const router = useRouter();
   // +++ Get currentUserId from navigation parameters +++
   const { currentUserId } = useLocalSearchParams<{ currentUserId: string }>();
-  
+
   const [chats, setChats] = useState<ChatType[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +44,7 @@ export default function Inbox() {
     }
     try {
       console.log('🔄 Fetching inbox for user:', currentUserId);
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+      const API_BASE_URL = config.API_BASE_URL;
       const res = await axios.get(`${API_BASE_URL}/api/inbox/${currentUserId}`);
       console.log('✅ Inbox response:', res.data);
       setChats(res.data || []);
@@ -81,14 +82,14 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:30
 
   if (chats.length === 0) {
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.headerContainer}>
-                <Text style={styles.headerText}>Inbox</Text>
-            </View>
-            <View style={styles.centered}>
-                <Text style={styles.noChatsText}>No chats yet.</Text>
-            </View>
-        </SafeAreaView>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.headerText}>Inbox</Text>
+        </View>
+        <View style={styles.centered}>
+          <Text style={styles.noChatsText}>No chats yet.</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 

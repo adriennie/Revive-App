@@ -4,23 +4,24 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import axios from 'axios';
+import { config } from '../lib/config';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+const API_BASE_URL = config.API_BASE_URL;
 
 export default function ProductScreen() {
   const router = useRouter();
   // Get both the product ID (renamed to itemId for clarity) and the current user's ID
   const { id: itemId, currentUserId, currentUserName } = useLocalSearchParams<{ id: string, currentUserId: string, currentUserName: string }>();
-  
+
   const [product, setProduct] = useState<any>(null);
   const [owner, setOwner] = useState<any>(null); // The item's owner
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isContacting, setIsContacting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
@@ -47,7 +48,7 @@ export default function ProductScreen() {
             .select('*')
             .eq('id', productData.user_id)
             .single();
-          
+
           if (ownerError) throw ownerError;
           setOwner(ownerData);
         }
@@ -68,17 +69,17 @@ export default function ProductScreen() {
       Alert.alert("Error", "Cannot start a chat. User or owner information is missing.");
       return;
     }
-    
+
     if (currentUserId === owner.id) {
       Alert.alert("Notice", "You cannot contact yourself about your own product.");
       return;
     }
-    
+
     setIsContacting(true);
-    
+
     // Create a chat ID using both the sender's and receiver's IDs
-    const chatId = [currentUserId, owner.id].sort().join('-'); 
-    
+    const chatId = [currentUserId, owner.id].sort().join('-');
+
     try {
       console.log('🔄 Creating chat...', {
         chat_id: chatId,
@@ -87,16 +88,16 @@ export default function ProductScreen() {
         item_name: product.name,
         receiver_name: owner.name
       });
-      
+
       const response = await axios.post(`${API_BASE_URL}/api/create-chat`, {
-          chat_id: chatId,
-          sender_id: currentUserId, // Sender is the current user
-          receiver_id: owner.id,   // Receiver is the item owner
-          item_name: product.name,
+        chat_id: chatId,
+        sender_id: currentUserId, // Sender is the current user
+        receiver_id: owner.id,   // Receiver is the item owner
+        item_name: product.name,
       });
-      
+
       console.log('✅ Chat created successfully:', response.data);
-      
+
       router.push({
         pathname: '/Message',
         params: {
@@ -110,13 +111,13 @@ export default function ProductScreen() {
     } catch (error) {
       console.error('❌ Failed to create chat:', error);
       let errorMessage = 'Unable to start chat. Please try again.';
-      
+
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       Alert.alert('Error', errorMessage);
     } finally {
       setIsContacting(false);
@@ -128,14 +129,14 @@ export default function ProductScreen() {
       Alert.alert('Error', 'Cannot express interest. Missing user or product information.');
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
       console.log('🔄 Expressing interest in product:', product.id);
       console.log('📊 Current user ID:', currentUserId);
       console.log('📊 Owner ID:', owner.id);
-      
+
       const orderPayload = {
         requester_id: currentUserId,
         item_id: product.id,
@@ -148,11 +149,11 @@ export default function ProductScreen() {
       console.log('📦 Order payload:', orderPayload);
 
       const response = await axios.post(`${API_BASE_URL}/api/orders`, orderPayload);
-      
+
       console.log('✅ Order created successfully:', response.data);
-      
+
       Alert.alert(
-        'Success!', 
+        'Success!',
         'Your interest has been sent to the owner. You will be notified when they respond.',
         [
           {
@@ -163,12 +164,12 @@ export default function ProductScreen() {
       );
     } catch (error: any) {
       console.error('❌ Failed to express interest:', error);
-      
+
       let errorMessage = 'Could not register your interest.';
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       }
-      
+
       Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -185,58 +186,58 @@ export default function ProductScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFF8E1' }}>
-        <View style={styles.topBar}>
-            <TouchableOpacity onPress={() => router.back()}>
-                <Ionicons name="arrow-back" size={28} color="#222" />
-            </TouchableOpacity>
-        </View>
-        <Image
-            source={{ uri: product?.image_url || 'https://via.placeholder.com/300x300.png?text=No+Image' }}
-            style={styles.image}
-        />
-        <ScrollView style={styles.detailsContainer} contentContainerStyle={{ paddingBottom: 120 }}>
-            <Text style={styles.productTitle}>{product.name}</Text>
-            <Text style={styles.productDesc}>{product.description}</Text>
-            
-            {/* Price Section */}
-            {product.price && (
-              <>
-                <Text style={styles.sectionTitle}>Price</Text>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.priceValue}>{product.price} credits</Text>
-                </View>
-              </>
-            )}
-            
-            <Text style={styles.sectionTitle}>Condition</Text>
-            <Text style={styles.sectionValue}>{product.condition}</Text>
-            <Text style={styles.sectionTitle}>Offered by</Text>
-            {owner && (
-                <View style={styles.userRow}>
-                    <Image source={{ uri: owner.photo_url }} style={styles.avatar} />
-                    <View>
-                        <Text style={styles.userName}>{owner.name}</Text>
-                        <Text style={styles.userMeta}>Joined {new Date(owner.created_at).getFullYear()}</Text>
-                    </View>
-                </View>
-            )}
-        </ScrollView>
-        <View style={styles.buttonRow}>
-            <TouchableOpacity 
-                style={[styles.contactBtn, isContacting && styles.submittingBtn]} 
-                onPress={handleContactPress} 
-                disabled={!owner || isContacting}
-            >
-                {isContacting ? <ActivityIndicator color="#222" /> : <Text style={styles.btnText}>Contact</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.interestBtn, isSubmitting && styles.submittingBtn]}
-                onPress={handleExpressInterest}
-                disabled={isSubmitting}
-            >
-                {isSubmitting ? <ActivityIndicator color="#555" /> : <Text style={styles.btnTextAlt}>Express Interest</Text>}
-            </TouchableOpacity>
-        </View>
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={28} color="#222" />
+        </TouchableOpacity>
+      </View>
+      <Image
+        source={{ uri: product?.image_url || 'https://via.placeholder.com/300x300.png?text=No+Image' }}
+        style={styles.image}
+      />
+      <ScrollView style={styles.detailsContainer} contentContainerStyle={{ paddingBottom: 120 }}>
+        <Text style={styles.productTitle}>{product.name}</Text>
+        <Text style={styles.productDesc}>{product.description}</Text>
+
+        {/* Price Section */}
+        {product.price && (
+          <>
+            <Text style={styles.sectionTitle}>Price</Text>
+            <View style={styles.priceContainer}>
+              <Text style={styles.priceValue}>{product.price} credits</Text>
+            </View>
+          </>
+        )}
+
+        <Text style={styles.sectionTitle}>Condition</Text>
+        <Text style={styles.sectionValue}>{product.condition}</Text>
+        <Text style={styles.sectionTitle}>Offered by</Text>
+        {owner && (
+          <View style={styles.userRow}>
+            <Image source={{ uri: owner.photo_url }} style={styles.avatar} />
+            <View>
+              <Text style={styles.userName}>{owner.name}</Text>
+              <Text style={styles.userMeta}>Joined {new Date(owner.created_at).getFullYear()}</Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={[styles.contactBtn, isContacting && styles.submittingBtn]}
+          onPress={handleContactPress}
+          disabled={!owner || isContacting}
+        >
+          {isContacting ? <ActivityIndicator color="#222" /> : <Text style={styles.btnText}>Contact</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.interestBtn, isSubmitting && styles.submittingBtn]}
+          onPress={handleExpressInterest}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? <ActivityIndicator color="#555" /> : <Text style={styles.btnTextAlt}>Express Interest</Text>}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -262,8 +263,8 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8E1' },
   // Price section styles
   priceContainer: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#f0fdf4',
     padding: 16,

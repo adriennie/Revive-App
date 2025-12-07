@@ -1,6 +1,7 @@
 import { api } from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { config } from './config';
 
 export interface UserSession {
   id: string;
@@ -14,19 +15,19 @@ export class AuthService {
   static async authenticateUser(email: string): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
       console.log('🔍 [AuthService] Looking up user by email:', email);
-      
+
       // Get all users and find by email
       const result = await api.getAllUsers();
-      
+
       if (result.success && result.users) {
         const user = result.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        
+
         if (user) {
           console.log('✅ [AuthService] User found:', user);
-          
+
           // Give initial credits if user doesn't have any
           try {
-            const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+            const API_BASE_URL = config.API_BASE_URL;
             await fetch(`${API_BASE_URL}/api/users/${user.id}/give-initial-credits`, {
               method: 'POST',
               headers: {
@@ -37,7 +38,7 @@ export class AuthService {
           } catch (creditError) {
             console.log('⚠️ [AuthService] Could not check/give initial credits:', creditError);
           }
-          
+
           return {
             success: true,
             user: user
@@ -131,7 +132,7 @@ export class AuthService {
         await AsyncStorage.removeItem('userSession');
         console.log('🗑️ [AuthService] Session cleared from AsyncStorage');
       }
-      
+
       // Also clear Supabase session
       await supabase.auth.signOut();
       console.log('🗑️ [AuthService] Supabase session cleared');
@@ -141,12 +142,12 @@ export class AuthService {
   }
 
   // ========= SUPABASE AUTHENTICATION METHODS =========
-  
+
   // Register user with Supabase (integrated into existing flow)
   static async registerWithSupabase(email: string, password: string, name: string): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
       console.log('🔍 [AuthService] Registering user with Supabase:', email);
-      
+
       // Sign up with Supabase
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -166,7 +167,7 @@ export class AuthService {
 
       if (data.user) {
         console.log('✅ [AuthService] Supabase user created:', data.user.id);
-        
+
         // Create user in your database using the Supabase user ID
         const userData = {
           clerk_user_id: data.user.id, // Use Supabase user ID
@@ -200,7 +201,7 @@ export class AuthService {
   static async authenticateWithSupabase(email: string, password: string): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
       console.log('🔍 [AuthService] Authenticating with Supabase:', email);
-      
+
       // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -214,15 +215,15 @@ export class AuthService {
 
       if (data.user && data.session) {
         console.log('✅ [AuthService] Supabase authentication successful');
-        
+
         // Find user in your database using Supabase user ID
         const existingUser = await api.getUserByClerkId(data.user.id);
         if (existingUser.success && existingUser.user) {
           console.log('✅ [AuthService] User found in database:', existingUser.user);
-          
+
           // Give initial credits if user doesn't have any
           try {
-            const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.61:3000';
+            const API_BASE_URL = config.API_BASE_URL;
             await fetch(`${API_BASE_URL}/api/users/${existingUser.user.id}/give-initial-credits`, {
               method: 'POST',
               headers: {
@@ -233,7 +234,7 @@ export class AuthService {
           } catch (creditError) {
             console.log('⚠️ [AuthService] Could not check/give initial credits:', creditError);
           }
-          
+
           return {
             success: true,
             user: existingUser.user
@@ -274,7 +275,7 @@ export class AuthService {
   static async signInWithSupabaseGoogle(): Promise<{ success: boolean; error?: string }> {
     try {
       console.log('🔍 [AuthService] Starting Google OAuth with Supabase');
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -299,14 +300,14 @@ export class AuthService {
   static async getCurrentSupabaseUser(): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
-      
+
       if (error || !user) {
         console.log('🔍 [AuthService] No current Supabase user found');
         return { success: false, error: 'No user found' };
       }
 
       console.log('✅ [AuthService] Current Supabase user found:', user.id);
-      
+
       // Find user in your database
       const existingUser = await api.getUserByClerkId(user.id);
       if (existingUser.success && existingUser.user) {
@@ -344,7 +345,7 @@ export class AuthService {
   static async resetPasswordWithSupabase(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log('🔍 [AuthService] Sending password reset email via Supabase:', email);
-      
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: 'exp://localhost:8081/--/reset-password',
       });

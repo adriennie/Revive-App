@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { config } from '../lib/config';
 import {
   View, Text, SafeAreaView, TouchableOpacity,
   FlatList, TextInput, Modal, StyleSheet, Platform, ScrollView
@@ -7,19 +8,19 @@ import { useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const BACKEND_URL = 'http://192.168.29.61:3000';
+const BACKEND_URL = config.API_BASE_URL;
 
 export default function CreditEconomy() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   // Use passed params or fallback to Clerk user
   const userId = (params.userId as string) || user?.id;
   const userName = (params.userName as string) || user?.firstName || 'Guest';
   const userEmail = (params.userEmail as string) || user?.primaryEmailAddress?.emailAddress || '';
 
-  console.log(userId,userName,userEmail);
+  console.log(userId, userName, userEmail);
 
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -48,7 +49,7 @@ export default function CreditEconomy() {
       // Calculate balance and analytics
       let totalReceived = 0;
       let totalSpent = 0;
-      
+
       const total = transactionData.reduce((sum, tx) => {
         if (tx.receiver_id === userId) {
           totalReceived += tx.amount;
@@ -60,7 +61,7 @@ export default function CreditEconomy() {
         }
         return sum;
       }, 0);
-      
+
       setBalance(total);
       setAnalytics({
         totalReceived,
@@ -109,8 +110,8 @@ export default function CreditEconomy() {
     <SafeAreaView style={styles.safeContainer}>
       {/* Header with Back Navigation */}
       <View style={styles.navigationHeader}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color="#222" />
@@ -123,7 +124,7 @@ export default function CreditEconomy() {
         {/* Credit Balance Card */}
         <View style={styles.balanceSection}>
           <Text style={styles.greeting}>Hello, {user?.firstName ?? 'Guest'}</Text>
-          
+
           <View style={styles.creditBox}>
             <Ionicons name="wallet-outline" size={32} color="#FF9800" style={{ marginBottom: 8 }} />
             <Text style={styles.creditLabel}>Current Balance</Text>
@@ -182,13 +183,13 @@ export default function CreditEconomy() {
               <View key={item.id} style={styles.historyCard}>
                 <View style={styles.historyLeft}>
                   <View style={[
-                    styles.transactionIcon, 
+                    styles.transactionIcon,
                     { backgroundColor: item.receiver_id === userId ? '#E8F5E8' : '#FFEBEE' }
                   ]}>
-                    <Ionicons 
-                      name={item.receiver_id === userId ? "arrow-down" : "arrow-up"} 
-                      size={16} 
-                      color={item.receiver_id === userId ? '#4CAF50' : '#F44336'} 
+                    <Ionicons
+                      name={item.receiver_id === userId ? "arrow-down" : "arrow-up"}
+                      size={16}
+                      color={item.receiver_id === userId ? '#4CAF50' : '#F44336'}
                     />
                   </View>
                   <View style={styles.historyInfo}>
@@ -196,9 +197,9 @@ export default function CreditEconomy() {
                       {item.description || (item.receiver_id === userId ? 'Credit Received' : 'Credit Sent')}
                     </Text>
                     <Text style={styles.historyDate}>
-                      {new Date(item.created_at).toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric', 
+                      {new Date(item.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
                         year: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit'
